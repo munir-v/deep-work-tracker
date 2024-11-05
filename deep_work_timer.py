@@ -22,7 +22,6 @@ class StopwatchApp(rumps.App):
 
         # Initialize settings
         self.start_at_startup = False
-        self.shortcuts = {}
         self.file_location = ""
         self.load_settings()
 
@@ -35,7 +34,6 @@ class StopwatchApp(rumps.App):
             {
                 "Settings": [
                     rumps.MenuItem("Start at startup", callback=self.toggle_startup),
-                    rumps.MenuItem("Set keyboard shortcuts", callback=self.set_shortcuts),
                     rumps.MenuItem("Select .xlsx file location", callback=self.select_file_location),
                 ]
             },
@@ -43,8 +41,6 @@ class StopwatchApp(rumps.App):
 
         # Set the initial state of the "Start at startup" setting
         self.menu["Settings"]["Start at startup"].state = self.start_at_startup
-
-        self.apply_shortcuts()
 
     def update_time(self, _):
         self.time_elapsed += 1
@@ -81,33 +77,6 @@ class StopwatchApp(rumps.App):
         self.start_at_startup = sender.state
         self.save_settings()
         # Implement startup functionality as needed
-
-    def set_shortcuts(self, _):
-        response = rumps.Window(
-            "Enter shortcuts separated by commas (e.g., cmd+R,cmd+P,cmd+S):",
-            "Set Keyboard Shortcuts",
-            ok="Save",
-            cancel="Cancel",
-        ).run()
-        if response.clicked:
-            shortcuts = response.text.split(",")
-            if len(shortcuts) == 3:
-                self.shortcuts = {
-                    "Start/Resume": shortcuts[0].strip(),
-                    "Pause": shortcuts[1].strip(),
-                    "Reset and Save": shortcuts[2].strip(),
-                }
-                self.apply_shortcuts()
-                self.save_settings()
-            else:
-                rumps.alert("Please enter three shortcuts separated by commas.")
-
-    def apply_shortcuts(self):
-        for action, shortcut in self.shortcuts.items():
-            if shortcut:
-                self.menu[action].shortcut = shortcut
-            else:
-                self.menu[action].shortcut = None
 
     def select_file_location(self, _):
         panel = NSOpenPanel.openPanel()
@@ -232,7 +201,6 @@ class StopwatchApp(rumps.App):
     def save_settings(self):
         settings = {
             "start_at_startup": self.start_at_startup,
-            "shortcuts": self.shortcuts,
             "file_location": self.file_location,
         }
         with open("settings.json", "w") as f:
@@ -243,7 +211,6 @@ class StopwatchApp(rumps.App):
             with open("settings.json", "r") as f:
                 settings = json.load(f)
                 self.start_at_startup = settings.get("start_at_startup", False)
-                self.shortcuts = settings.get("shortcuts", {})
                 self.file_location = settings.get("file_location", "")
         except FileNotFoundError:
             pass
