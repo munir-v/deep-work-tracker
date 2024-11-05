@@ -1,3 +1,4 @@
+# app.py
 import rumps
 import json
 from datetime import datetime
@@ -12,6 +13,8 @@ from Cocoa import (
     NSApp,
 )
 from AppKit import NSAlertFirstButtonReturn
+import os
+from pathlib import Path
 
 class StopwatchApp(rumps.App):
     def __init__(self):
@@ -23,6 +26,7 @@ class StopwatchApp(rumps.App):
         # Initialize settings
         self.start_at_startup = False
         self.file_location = ""
+        self.settings_path = self.get_settings_path()
         self.load_settings()
 
         # Create menu items
@@ -41,6 +45,12 @@ class StopwatchApp(rumps.App):
 
         # Set the initial state of the "Start at startup" setting
         self.menu["Settings"]["Start at startup"].state = self.start_at_startup
+
+    def get_settings_path(self):
+        # Get the path to Application Support
+        app_support = Path.home() / "Library" / "Application Support" / "StopwatchApp"
+        app_support.mkdir(parents=True, exist_ok=True)
+        return app_support / "settings.json"
 
     def update_time(self, _):
         self.time_elapsed += 1
@@ -76,7 +86,29 @@ class StopwatchApp(rumps.App):
         sender.state = not sender.state
         self.start_at_startup = sender.state
         self.save_settings()
-        # Implement startup functionality as needed
+        if self.start_at_startup:
+            self.add_to_login_items()
+        else:
+            self.remove_from_login_items()
+
+    def add_to_login_items(self):
+        app_path = os.path.abspath(sys.argv[0])
+        script = f'''
+        tell application "System Events"
+            if not (exists login item "StopwatchApp") then
+                make login item at end with properties {{path:"{app_path}", hidden:false}}
+            end if
+        end tell
+        '''
+        os.system(f"osascript -e '{script}'")
+
+    def remove_from_login_items(self):
+        script = '''
+        tell application "System Events"
+            delete login item "StopwatchApp"
+        end tell
+        '''
+        os.system(f"osascript -e '{script}'")
 
     def select_file_location(self, _):
         panel = NSOpenPanel.openPanel()
@@ -138,7 +170,9 @@ class StopwatchApp(rumps.App):
                     sheet.cell(row=row, column=date_column_index).value = datetime.now()
 
                     # Insert the time value into the column
-                    sheet.cell(row=row, column=column_index).value = time_value
+                    cell = sheet.cell(row=row, column=column_index)
+                    cell.value = time_value
+                    cell.number_format = '0.00'  # Set cell format to number with two decimals
                     break
 
             # Iterate through the sheet to find each "Total" column
@@ -187,6 +221,9 @@ class StopwatchApp(rumps.App):
         # Add the combobox to the alert's accessory view
         alert.setAccessoryView_(combobox)
 
+        alert.window().makeKeyAndOrderFront_(None)
+        NSApp.activateIgnoringOtherApps_(True)  # Ensures the alert is front-most
+
         # Set the combobox as the first responder
         alert.window().setInitialFirstResponder_(combobox)
 
@@ -203,12 +240,12 @@ class StopwatchApp(rumps.App):
             "start_at_startup": self.start_at_startup,
             "file_location": self.file_location,
         }
-        with open("settings.json", "w") as f:
+        with open(self.settings_path, "w") as f:
             json.dump(settings, f)
 
     def load_settings(self):
         try:
-            with open("settings.json", "r") as f:
+            with open(self.settings_path, "r") as f:
                 settings = json.load(f)
                 self.start_at_startup = settings.get("start_at_startup", False)
                 self.file_location = settings.get("file_location", "")
