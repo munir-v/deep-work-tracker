@@ -1,6 +1,6 @@
 import rumps
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from Cocoa import (
     NSAlert,
     NSComboBox,
@@ -14,11 +14,11 @@ import os
 from pathlib import Path
 from functools import partial
 
+
 class StopwatchApp(rumps.App):
     def __init__(self):
-        # Ensure quit button is always at the end
-        self.quit_button = "Quit"
-        super(StopwatchApp, self).__init__("0:00:00")
+        # Initialize the App with the quit_button parameter
+        super(StopwatchApp, self).__init__("0:00:00", quit_button="Quit")
 
         self.time_elapsed = 0
         self.timer = rumps.Timer(self.update_time, 1)
@@ -30,15 +30,18 @@ class StopwatchApp(rumps.App):
         self.load_settings()
         self.load_data()
 
+        # Define the menu without including the Quit button
         self.menu = [
             "Start/Resume",
             "Pause",
             "Reset and Save",
             None,
             rumps.MenuItem("Start at startup", callback=self.toggle_startup),
-            rumps.MenuItem("Add Category", callback=self.add_category)
+            rumps.MenuItem("Add Category", callback=self.add_category),
+            rumps.MenuItem("Statistics", callback=self.show_statistics),  # Added Statistics
         ]
 
+        # Set the state for "Start at startup"
         self.menu["Start at startup"].state = self.start_at_startup
         self.build_categories_menu()
 
@@ -79,18 +82,20 @@ class StopwatchApp(rumps.App):
             json.dump(self.data, f, indent=2)
 
     def build_categories_menu(self):
-        # Remove any existing categories (only categories, don't remove known items or Quit)
-        keep_items = {"Start/Resume", "Pause", "Reset and Save", "Start at startup", "Add Category", "Quit"}
+        # Remove any existing categories (only categories, don't remove known items)
+        keep_items = {"Start/Resume", "Pause", "Reset and Save", "Start at startup", "Add Category", "Statistics"}
         for key in list(self.menu.keys()):
             if key not in keep_items and key in self.menu:
                 del self.menu[key]
 
         # Add categories after "Add Category"
+        insert_after = "Add Category"
         for cat in self.data["categories"].keys():
             cat_item = rumps.MenuItem(cat)
             delete_item = rumps.MenuItem("Delete Category", callback=partial(self.delete_category, cat))
             cat_item.add(delete_item)
-            self.menu.insert_after("Add Category", cat_item)
+            self.menu.insert_after(insert_after, cat_item)
+            insert_after = cat  # Ensure subsequent categories are added in order
 
     def update_time(self, _):
         self.time_elapsed += 1
@@ -101,6 +106,11 @@ class StopwatchApp(rumps.App):
         mins = (seconds % 3600) // 60
         secs = seconds % 60
         return f"{hrs}:{mins:02d}:{secs:02d}"
+
+    def format_time_minutes(self, minutes):
+        hrs = int(minutes) // 60
+        mins = minutes - (hrs * 60)
+        return f"{hrs}:{mins:05.2f}"  # e.g., 1:23.45
 
     @rumps.clicked("Start/Resume")
     def start_resume(self, _):
@@ -231,6 +241,63 @@ class StopwatchApp(rumps.App):
                 self.build_categories_menu()
             else:
                 rumps.alert("Category already exists.")
+
+    @rumps.clicked("Statistics")
+    def show_statistics(self, _):
+        if not self.data["categories"]:
+            rumps.alert("No categories available to show statistics.")
+            return
+
+        today = datetime.now().date()
+        week_ago = today - timedelta(days=7)
+
+        per_category_stats = {}
+        overall_daily = 0
+        overall_weekly = 0
+
+        for category, entries in self.data["categories"].items():
+            daily = 0
+            weekly = 0
+            lifetime = 0
+
+            for entry in entries:
+                try:
+                    entry_date = datetime.fromisoformat(entry['date']).date()
+                except ValueError:
+                    continue  # Skip invalid date formats
+
+                time = entry['time']  # in minutes
+                lifetime += time
+
+                if entry_date == today:
+                    daily += time
+
+                if week_ago <= entry_date <= today:
+                    weekly += time
+
+            per_category_stats[category] = {
+                'daily': daily,
+                'weekly': weekly,
+                'lifetime': lifetime
+            }
+
+            overall_daily += daily
+            overall_weekly += weekly
+
+        # Compile the statistics string
+        stats = "Stopwatch Statistics:\n\n"
+
+        for category, stats_dict in per_category_stats.items():
+            stats += f"Category: {category}\n"
+            stats += f"  Daily Total: {self.format_time_minutes(stats_dict['daily'])} minutes\n"
+            stats += f"  Weekly Total: {self.format_time_minutes(stats_dict['weekly'])} minutes\n"
+            stats += f"  Lifetime Total: {self.format_time_minutes(stats_dict['lifetime'])} minutes\n\n"
+
+        stats += f"Overall Daily Total: {self.format_time_minutes(overall_daily)} minutes\n"
+        stats += f"Overall Weekly Total: {self.format_time_minutes(overall_weekly)} minutes\n"
+
+        # Display the statistics in an alert
+        rumps.alert(stats, "Stopwatch Statistics")  # Changed here
 
 
 if __name__ == "__main__":
