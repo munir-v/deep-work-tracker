@@ -8,6 +8,9 @@ from Cocoa import (
     NSRect,
     NSSize,
     NSApp,
+    NSDatePicker,
+    NSDatePickerModeSingle,
+    NSTextField
 )
 from AppKit import NSAlertFirstButtonReturn
 import os
@@ -17,7 +20,6 @@ from functools import partial
 
 class StopwatchApp(rumps.App):
     def __init__(self):
-        # Initialize the App with the quit_button parameter
         super(StopwatchApp, self).__init__("0:00:00", quit_button="Quit")
 
         self.time_elapsed = 0
@@ -30,7 +32,6 @@ class StopwatchApp(rumps.App):
         self.load_settings()
         self.load_data()
 
-        # Define the menu without including the Quit button
         self.menu = [
             "Start/Resume",
             "Pause",
@@ -38,10 +39,10 @@ class StopwatchApp(rumps.App):
             None,
             rumps.MenuItem("Start at startup", callback=self.toggle_startup),
             rumps.MenuItem("Add Category", callback=self.add_category),
-            rumps.MenuItem("Statistics", callback=self.show_statistics),  # Added Statistics
+            rumps.MenuItem("Add Entry", callback=self.add_entry),
+            rumps.MenuItem("Statistics", callback=self.show_statistics),
         ]
 
-        # Set the state for "Start at startup"
         self.menu["Start at startup"].state = self.start_at_startup
         self.build_categories_menu()
 
@@ -82,20 +83,18 @@ class StopwatchApp(rumps.App):
             json.dump(self.data, f, indent=2)
 
     def build_categories_menu(self):
-        # Remove any existing categories (only categories, don't remove known items)
-        keep_items = {"Start/Resume", "Pause", "Reset and Save", "Start at startup", "Add Category", "Statistics"}
+        keep_items = {"Start/Resume", "Pause", "Reset and Save", "Start at startup", "Add Category", "Add Entry", "Statistics"}
         for key in list(self.menu.keys()):
             if key not in keep_items and key in self.menu:
                 del self.menu[key]
 
-        # Add categories after "Add Category"
         insert_after = "Add Category"
         for cat in self.data["categories"].keys():
             cat_item = rumps.MenuItem(cat)
             delete_item = rumps.MenuItem("Delete Category", callback=partial(self.delete_category, cat))
             cat_item.add(delete_item)
             self.menu.insert_after(insert_after, cat_item)
-            insert_after = cat  # Ensure subsequent categories are added in order
+            insert_after = cat
 
     def update_time(self, _):
         self.time_elapsed += 1
@@ -110,7 +109,7 @@ class StopwatchApp(rumps.App):
     def format_time_minutes(self, minutes):
         hrs = int(minutes) // 60
         mins = minutes - (hrs * 60)
-        return f"{hrs}:{mins:05.2f}"  # e.g., 1:23.45
+        return f"{hrs}:{mins:05.2f}"
 
     @rumps.clicked("Start/Resume")
     def start_resume(self, _):
@@ -210,7 +209,6 @@ class StopwatchApp(rumps.App):
         alert.addButtonWithTitle_("OK")
         alert.addButtonWithTitle_("Cancel")
 
-        from AppKit import NSTextField
         width = 300
         height = 24
         textfield = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(0, 0), NSSize(width, height)))
@@ -224,6 +222,50 @@ class StopwatchApp(rumps.App):
         if response == NSAlertFirstButtonReturn:
             return textfield.stringValue().strip()
         return None
+
+    def get_date_time_input(self):
+        alert = NSAlert.alloc().init()
+        alert.setMessageText_("Add Entry")
+        alert.setInformativeText_("Enter a date/time (mm/dd/yy hh:mm) and time in minutes:")
+        alert.addButtonWithTitle_("OK")
+        alert.addButtonWithTitle_("Cancel")
+
+        container_width = 300
+        container_height = 60
+
+        current_dt_str = datetime.now().strftime("%m/%d/%y %H:%M")
+
+        datetime_field = NSTextField.alloc().initWithFrame_(
+            NSRect(NSPoint(0, 30), NSSize(container_width, 24))
+        )
+        datetime_field.setStringValue_(current_dt_str)
+
+        time_field = NSTextField.alloc().initWithFrame_(
+            NSRect(NSPoint(0, 0), NSSize(container_width, 24))
+        )
+        time_field.setPlaceholderString_("Time in minutes")
+
+        from AppKit import NSView
+        container_view = NSView.alloc().initWithFrame_(NSRect(NSPoint(0,0), NSSize(container_width, container_height)))
+        container_view.addSubview_(time_field)
+        container_view.addSubview_(datetime_field)
+        alert.setAccessoryView_(container_view)
+
+        alert.window().makeKeyAndOrderFront_(None)
+        NSApp.activateIgnoringOtherApps_(True)
+        alert.window().setInitialFirstResponder_(datetime_field)
+
+        response = alert.runModal()
+        if response == NSAlertFirstButtonReturn:
+            datetime_str = datetime_field.stringValue().strip()
+            time_str = time_field.stringValue().strip()
+            try:
+                date_value = datetime.strptime(datetime_str, "%m/%d/%y %H:%M")
+                time_minutes = float(time_str)
+                return date_value, time_minutes
+            except (ValueError, TypeError):
+                return None, None
+        return None, None
 
     def delete_category(self, category_name, _):
         if category_name in self.data["categories"]:
@@ -241,6 +283,28 @@ class StopwatchApp(rumps.App):
                 self.build_categories_menu()
             else:
                 rumps.alert("Category already exists.")
+
+    @rumps.clicked("Add Entry")
+    def add_entry(self, _):
+        if not self.data["categories"]:
+            rumps.alert("No categories available. Please add a category first.")
+            return
+
+        category_name = self.select_category(list(self.data["categories"].keys()))
+        if not category_name:
+            return
+
+        date_value, time_minutes = self.get_date_time_input()
+        if date_value is None or time_minutes is None:
+            return
+
+        entry = {
+            "date": date_value.isoformat(),
+            "time": time_minutes
+        }
+        self.data["categories"][category_name].append(entry)
+        self.save_data()
+        rumps.notification("Stopwatch", "Data Saved", f"Entry saved under '{category_name}'.")
 
     @rumps.clicked("Statistics")
     def show_statistics(self, _):
@@ -264,9 +328,9 @@ class StopwatchApp(rumps.App):
                 try:
                     entry_date = datetime.fromisoformat(entry['date']).date()
                 except ValueError:
-                    continue  # Skip invalid date formats
+                    continue
 
-                time = entry['time']  # in minutes
+                time = entry['time']
                 lifetime += time
 
                 if entry_date == today:
@@ -284,9 +348,7 @@ class StopwatchApp(rumps.App):
             overall_daily += daily
             overall_weekly += weekly
 
-        # Compile the statistics string
         stats = "Stopwatch Statistics:\n\n"
-
         for category, stats_dict in per_category_stats.items():
             stats += f"Category: {category}\n"
             stats += f"  Daily Total: {self.format_time_minutes(stats_dict['daily'])} minutes\n"
@@ -296,8 +358,7 @@ class StopwatchApp(rumps.App):
         stats += f"Overall Daily Total: {self.format_time_minutes(overall_daily)} minutes\n"
         stats += f"Overall Weekly Total: {self.format_time_minutes(overall_weekly)} minutes\n"
 
-        # Display the statistics in an alert
-        rumps.alert(stats, "Stopwatch Statistics")  # Changed here
+        rumps.alert(stats, "Stopwatch Statistics")
 
 
 if __name__ == "__main__":
