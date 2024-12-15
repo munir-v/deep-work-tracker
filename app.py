@@ -8,8 +8,6 @@ from Cocoa import (
     NSRect,
     NSSize,
     NSApp,
-    NSDatePicker,
-    NSDatePickerModeSingle,
     NSTextField
 )
 from AppKit import NSAlertFirstButtonReturn
@@ -32,25 +30,27 @@ class StopwatchApp(rumps.App):
         self.load_settings()
         self.load_data()
 
+
+        settings_item = rumps.MenuItem("Settings")
+        settings_item.add(rumps.MenuItem("Start at startup", callback=self.toggle_startup))
+        settings_item.add(rumps.MenuItem("Add Category", callback=self.add_category))
+        settings_item.add(rumps.MenuItem("Open Data File Location", callback=self.open_data_location))
         self.menu = [
             "Start/Resume",
             "Pause",
             "Reset and Save",
             None,
-            rumps.MenuItem("Start at startup", callback=self.toggle_startup),
-            rumps.MenuItem("Add Category", callback=self.add_category),
+            settings_item,
             rumps.MenuItem("Manual Entry", callback=self.add_entry),
-            rumps.MenuItem("Open Data File Location", callback=self.open_data_location),
             rumps.MenuItem("Statistics", callback=self.show_statistics),
         ]
 
-        self.menu["Start at startup"].state = self.start_at_startup
+        self.menu["Settings"]["Start at startup"].state = self.start_at_startup
         self.build_categories_menu()
 
-    @rumps.clicked("Open Data File Location")
     def open_data_location(self, _):
         os.system(f'open "{self.data_path}"')
-        
+
     def get_settings_path(self):
         app_support = Path.home() / "Library" / "Application Support" / "StopwatchApp"
         app_support.mkdir(parents=True, exist_ok=True)
@@ -88,12 +88,12 @@ class StopwatchApp(rumps.App):
             json.dump(self.data, f, indent=2)
 
     def build_categories_menu(self):
-        keep_items = {"Start/Resume", "Pause", "Reset and Save", "Start at startup", "Add Category", "Manual Entry", "Statistics"}
+        keep_items = {"Start/Resume", "Pause", "Reset and Save", "Settings", "Manual Entry", "Statistics"}
         for key in list(self.menu.keys()):
             if key not in keep_items and key in self.menu:
                 del self.menu[key]
 
-        insert_after = "Add Category"
+        insert_after = "Statistics"
         for cat in self.data["categories"].keys():
             cat_item = rumps.MenuItem(cat)
             delete_item = rumps.MenuItem("Delete Category", callback=partial(self.delete_category, cat))
@@ -278,7 +278,6 @@ class StopwatchApp(rumps.App):
             self.save_data()
             self.build_categories_menu()
 
-    @rumps.clicked("Add Category")
     def add_category(self, _):
         name = self.get_text_input("Add Category", "Enter category name:")
         if name:
@@ -289,7 +288,6 @@ class StopwatchApp(rumps.App):
             else:
                 rumps.alert("Category already exists.")
 
-    @rumps.clicked("Manual Entry")
     def add_entry(self, _):
         if not self.data["categories"]:
             rumps.alert("No categories available. Please add a category first.")
@@ -317,7 +315,6 @@ class StopwatchApp(rumps.App):
         mins = total_minutes % 60
         return f"{hrs}:{mins:02d}"
 
-    @rumps.clicked("Statistics")
     def show_statistics(self, _):
         if not self.data["categories"]:
             rumps.alert("No categories available to show statistics.")
