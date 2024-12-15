@@ -39,13 +39,18 @@ class StopwatchApp(rumps.App):
             None,
             rumps.MenuItem("Start at startup", callback=self.toggle_startup),
             rumps.MenuItem("Add Category", callback=self.add_category),
-            rumps.MenuItem("Add Entry", callback=self.add_entry),
+            rumps.MenuItem("Manual Entry", callback=self.add_entry),
+            rumps.MenuItem("Open Data File Location", callback=self.open_data_location),
             rumps.MenuItem("Statistics", callback=self.show_statistics),
         ]
 
         self.menu["Start at startup"].state = self.start_at_startup
         self.build_categories_menu()
 
+    @rumps.clicked("Open Data File Location")
+    def open_data_location(self, _):
+        os.system(f'open "{self.data_path}"')
+        
     def get_settings_path(self):
         app_support = Path.home() / "Library" / "Application Support" / "StopwatchApp"
         app_support.mkdir(parents=True, exist_ok=True)
@@ -83,7 +88,7 @@ class StopwatchApp(rumps.App):
             json.dump(self.data, f, indent=2)
 
     def build_categories_menu(self):
-        keep_items = {"Start/Resume", "Pause", "Reset and Save", "Start at startup", "Add Category", "Add Entry", "Statistics"}
+        keep_items = {"Start/Resume", "Pause", "Reset and Save", "Start at startup", "Add Category", "Manual Entry", "Statistics"}
         for key in list(self.menu.keys()):
             if key not in keep_items and key in self.menu:
                 del self.menu[key]
@@ -225,7 +230,7 @@ class StopwatchApp(rumps.App):
 
     def get_date_time_input(self):
         alert = NSAlert.alloc().init()
-        alert.setMessageText_("Add Entry")
+        alert.setMessageText_("Manual Entry")
         alert.setInformativeText_("Enter a date/time (mm/dd/yy hh:mm) and time in minutes:")
         alert.addButtonWithTitle_("OK")
         alert.addButtonWithTitle_("Cancel")
@@ -284,7 +289,7 @@ class StopwatchApp(rumps.App):
             else:
                 rumps.alert("Category already exists.")
 
-    @rumps.clicked("Add Entry")
+    @rumps.clicked("Manual Entry")
     def add_entry(self, _):
         if not self.data["categories"]:
             rumps.alert("No categories available. Please add a category first.")
@@ -305,6 +310,12 @@ class StopwatchApp(rumps.App):
         self.data["categories"][category_name].append(entry)
         self.save_data()
         rumps.notification("Stopwatch", "Data Saved", f"Entry saved under '{category_name}'.")
+
+    def format_hours_minutes(self, minutes):
+        total_minutes = int(round(minutes))
+        hrs = total_minutes // 60
+        mins = total_minutes % 60
+        return f"{hrs}:{mins:02d}"
 
     @rumps.clicked("Statistics")
     def show_statistics(self, _):
@@ -351,12 +362,12 @@ class StopwatchApp(rumps.App):
         stats = "Stopwatch Statistics:\n\n"
         for category, stats_dict in per_category_stats.items():
             stats += f"Category: {category}\n"
-            stats += f"  Daily Total: {self.format_time_minutes(stats_dict['daily'])} minutes\n"
-            stats += f"  Weekly Total: {self.format_time_minutes(stats_dict['weekly'])} minutes\n"
-            stats += f"  Lifetime Total: {self.format_time_minutes(stats_dict['lifetime'])} minutes\n\n"
+            stats += f"  Daily Total: {self.format_hours_minutes(stats_dict['daily'])}\n"
+            stats += f"  Weekly Total: {self.format_hours_minutes(stats_dict['weekly'])}\n"
+            stats += f"  Lifetime Total: {self.format_hours_minutes(stats_dict['lifetime'])}\n\n"
 
-        stats += f"Overall Daily Total: {self.format_time_minutes(overall_daily)} minutes\n"
-        stats += f"Overall Weekly Total: {self.format_time_minutes(overall_weekly)} minutes\n"
+        stats += f"Overall Daily Total: {self.format_hours_minutes(overall_daily)}\n"
+        stats += f"Overall Weekly Total: {self.format_hours_minutes(overall_weekly)}\n"
 
         rumps.alert(stats, "Stopwatch Statistics")
 
