@@ -7,7 +7,7 @@ from pathlib import Path
 
 import rumps
 from AppKit import NSAlertFirstButtonReturn, NSApp, NSTextField, NSView
-from Cocoa import NSAlert, NSComboBox, NSPoint, NSRect, NSSize
+from Cocoa import NSAlert, NSComboBox, NSPoint, NSRect, NSSize, NSScreen
 
 
 class StopwatchApp(rumps.App):
@@ -250,6 +250,18 @@ class StopwatchApp(rumps.App):
         combobox.addItemsWithObjectValues_(categories)
         combobox.selectItemAtIndex_(0)
         alert.setAccessoryView_(combobox)
+
+        # Set the position of the alert
+        alert_window = alert.window()
+        screen_frame = NSScreen.mainScreen().frame()
+        alert_width = 600  
+        alert_height = 200 
+
+        alert_x = (screen_frame.size.width - alert_width)
+        alert_y = (screen_frame.size.height - alert_height) 
+        alert_window.setFrame_display_animate_(
+            NSRect(NSPoint(alert_x, alert_y), NSSize(alert_width, alert_height)), True, False
+        )
 
         alert.window().makeKeyAndOrderFront_(None)
         NSApp.activateIgnoringOtherApps_(True)
