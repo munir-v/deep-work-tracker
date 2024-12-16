@@ -402,6 +402,7 @@ class StopwatchApp(rumps.App):
         per_category_stats = {}
         overall_daily = 0
         overall_weekly = 0
+        overall_lifetime = 0  # Initialize overall lifetime total
 
         for category, entries in self.data["categories"].items():
             daily = 0
@@ -431,18 +432,21 @@ class StopwatchApp(rumps.App):
 
             overall_daily += daily
             overall_weekly += weekly
+            overall_lifetime += lifetime 
 
         stats = "Stopwatch Statistics:\n\n"
         for category, stats_dict in per_category_stats.items():
-            stats += f"Category: {category}\n"
+            stats += f"{category}\n"
             stats += f"  Daily Total: {self.format_hours_minutes(stats_dict['daily'])}\n"
             stats += f"  Weekly Total: {self.format_hours_minutes(stats_dict['weekly'])}\n"
             stats += f"  Lifetime Total: {self.format_hours_minutes(stats_dict['lifetime'])}\n\n"
 
         stats += f"Overall Daily Total: {self.format_hours_minutes(overall_daily)}\n"
         stats += f"Overall Weekly Total: {self.format_hours_minutes(overall_weekly)}\n"
+        stats += f"Overall Lifetime Total: {self.format_hours_minutes(overall_lifetime)}\n"  # Add overall lifetime total
 
         rumps.alert(stats, "Stopwatch Statistics")
+
 
 
 if __name__ == "__main__":

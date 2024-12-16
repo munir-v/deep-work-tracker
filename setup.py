@@ -7,7 +7,7 @@ OPTIONS = {
     'plist': {
         'LSUIElement': True,  # Hides the dock icon, keeping the app in the menu bar
     },
-    'packages': ['rumps', 'AppKit', 'Cocoa'],  # Includes necessary dependencies
+    'packages': ['rumps', 'AppKit', 'Cocoa'], 
     'includes': ['imp'],
 }
 
