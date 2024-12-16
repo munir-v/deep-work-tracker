@@ -23,7 +23,7 @@ class StopwatchApp(rumps.App):
     - Manual data entry for custom timestamps and durations.
     """
 
-    APP_SUPPORT_DIR = Path.home() / "Library" / "Application Support" / "StopwatchApp"
+    APP_SUPPORT_DIR = Path.home() / "Library" / "Application Support" / "Deep Work Timer"
     SETTINGS_FILENAME = "settings.json"
     DATA_FILENAME = "data.json"
 
@@ -193,7 +193,7 @@ class StopwatchApp(rumps.App):
         app_path = os.path.abspath(sys.argv[0])
         script = f"""
         tell application "System Events"
-            if not (exists login item "StopwatchApp") then
+            if not (exists login item "Deep Work Timer") then
                 make login item at end with properties {{path:"{app_path}", hidden:false}}
             end if
         end tell
@@ -204,7 +204,7 @@ class StopwatchApp(rumps.App):
         """Remove this app from the user's login items."""
         script = """
         tell application "System Events"
-            delete login item "StopwatchApp"
+            delete login item "Deep Work Timer"
         end tell
         """
         os.system(f"osascript -e '{script}'")
