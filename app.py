@@ -13,7 +13,7 @@ from Cocoa import NSAlert, NSComboBox, NSPoint, NSRect, NSSize
 class StopwatchApp(rumps.App):
     """
     A menu bar stopwatch application that tracks time spent on various categories.
-    
+
     Features:
     - Start, pause, and reset a stopwatch.
     - Maintain categories for time entries.
@@ -108,13 +108,13 @@ class StopwatchApp(rumps.App):
 
     def build_categories_menu(self):
         keep_items = {
-            "Start/Resume", 
-            "Pause", 
-            "Reset and Save", 
-            "Settings", 
-            "Manual Entry", 
-            "Statistics", 
-            "Quit"  # Include Quit here
+            "Start/Resume",
+            "Pause",
+            "Reset and Save",
+            "Settings",
+            "Manual Entry",
+            "Statistics",
+            "Quit",  # Include Quit here
         }
 
         # Remove old categories
@@ -126,11 +126,12 @@ class StopwatchApp(rumps.App):
         insert_after = "Statistics"
         for cat in self.data["categories"].keys():
             cat_item = rumps.MenuItem(cat)
-            delete_item = rumps.MenuItem("Delete Category", callback=partial(self.delete_category, cat))
+            delete_item = rumps.MenuItem(
+                "Delete Category", callback=partial(self.delete_category, cat)
+            )
             cat_item.add(delete_item)
             self.menu.insert_after(insert_after, cat_item)
             insert_after = cat
-
 
     def open_data_location(self, _) -> None:
         """Open the data file location in Finder."""
@@ -190,22 +191,22 @@ class StopwatchApp(rumps.App):
     def add_to_login_items(self) -> None:
         """Add this app to the user's login items."""
         app_path = os.path.abspath(sys.argv[0])
-        script = f'''
+        script = f"""
         tell application "System Events"
             if not (exists login item "StopwatchApp") then
                 make login item at end with properties {{path:"{app_path}", hidden:false}}
             end if
         end tell
-        '''
+        """
         os.system(f"osascript -e '{script}'")
 
     def remove_from_login_items(self) -> None:
         """Remove this app from the user's login items."""
-        script = '''
+        script = """
         tell application "System Events"
             delete login item "StopwatchApp"
         end tell
-        '''
+        """
         os.system(f"osascript -e '{script}'")
 
     def save_to_json(self) -> None:
@@ -222,18 +223,17 @@ class StopwatchApp(rumps.App):
             return
 
         time_value = round(self.time_elapsed / 60, 2)
-        entry = {
-            "date": datetime.now().isoformat(),
-            "time": time_value
-        }
+        entry = {"date": datetime.now().isoformat(), "time": time_value}
         self.data["categories"][category_name].append(entry)
         self.save_data()
-        rumps.notification("Stopwatch", "Data Saved", f"Time saved under '{category_name}'.")
+        rumps.notification(
+            "Stopwatch", "Data Saved", f"Time saved under '{category_name}'."
+        )
 
     def select_category(self, categories: list) -> str:
         """
         Display a dialog with a combo box to select a category.
-        
+
         :param categories: A list of category names.
         :return: The selected category name or None if cancelled.
         """
@@ -263,7 +263,7 @@ class StopwatchApp(rumps.App):
     def get_text_input(self, title: str, message: str) -> str:
         """
         Prompt the user for text input.
-        
+
         :param title: The dialog title.
         :param message: The dialog informative text.
         :return: The entered text or None if cancelled.
@@ -293,12 +293,14 @@ class StopwatchApp(rumps.App):
     def get_date_time_input(self):
         """
         Prompt the user for a date/time and a time duration in minutes.
-        
+
         :return: A tuple (datetime object, float minutes) or (None, None) if invalid or cancelled.
         """
         alert = NSAlert.alloc().init()
         alert.setMessageText_("Manual Entry")
-        alert.setInformativeText_("Enter a date/time (mm/dd/yy hh:mm) and time in minutes:")
+        alert.setInformativeText_(
+            "Enter a date/time (mm/dd/yy hh:mm) and time in minutes:"
+        )
         alert.addButtonWithTitle_("OK")
         alert.addButtonWithTitle_("Cancel")
 
@@ -342,7 +344,7 @@ class StopwatchApp(rumps.App):
     def delete_category(self, category_name, _) -> None:
         """
         Delete a category by name.
-        
+
         :param category_name: The category to delete.
         """
         if category_name in self.data["categories"]:
@@ -375,23 +377,23 @@ class StopwatchApp(rumps.App):
         if date_value is None or time_minutes is None:
             return
 
-        entry = {
-            "date": date_value.isoformat(),
-            "time": time_minutes
-        }
+        entry = {"date": date_value.isoformat(), "time": time_minutes}
         self.data["categories"][category_name].append(entry)
         self.save_data()
-        rumps.notification("Stopwatch", "Data Saved", f"Entry saved under '{category_name}'.")
+        rumps.notification(
+            "Stopwatch", "Data Saved", f"Entry saved under '{category_name}'."
+        )
 
-    def format_hours_minutes(self, minutes: float) -> str:
-        """Format minutes as H:MM."""
-        total_minutes = int(round(minutes))
-        hrs = total_minutes // 60
-        mins = total_minutes % 60
-        return f"{hrs}:{mins:02d}"
+    def format_hours_minutes_seconds(self, minutes: float) -> str:
+        """Format time in minutes as H:MM:SS."""
+        total_seconds = int(round(minutes * 60))
+        hrs = total_seconds // 3600
+        mins = (total_seconds % 3600) // 60
+        secs = total_seconds % 60
+        return f"{hrs}:{mins:02d}:{secs:02d}"
 
     def show_statistics(self, _) -> None:
-        """Show statistics for each category (daily, weekly, lifetime)."""
+        """Show statistics for each category (daily, weekly, lifetime) with detailed time formatting."""
         if not self.data["categories"]:
             rumps.alert("No categories available to show statistics.")
             return
@@ -411,11 +413,11 @@ class StopwatchApp(rumps.App):
 
             for entry in entries:
                 try:
-                    entry_date = datetime.fromisoformat(entry['date']).date()
+                    entry_date = datetime.fromisoformat(entry["date"]).date()
                 except ValueError:
                     continue
 
-                time_spent = entry['time']
+                time_spent = entry["time"]
                 lifetime += time_spent
 
                 if entry_date == today:
@@ -425,28 +427,29 @@ class StopwatchApp(rumps.App):
                     weekly += time_spent
 
             per_category_stats[category] = {
-                'daily': daily,
-                'weekly': weekly,
-                'lifetime': lifetime
+                "daily": daily,
+                "weekly": weekly,
+                "lifetime": lifetime,
             }
 
             overall_daily += daily
             overall_weekly += weekly
-            overall_lifetime += lifetime 
+            overall_lifetime += lifetime
 
         stats = "Stopwatch Statistics:\n\n"
         for category, stats_dict in per_category_stats.items():
             stats += f"{category}\n"
-            stats += f"  Daily Total: {self.format_hours_minutes(stats_dict['daily'])}\n"
-            stats += f"  Weekly Total: {self.format_hours_minutes(stats_dict['weekly'])}\n"
-            stats += f"  Lifetime Total: {self.format_hours_minutes(stats_dict['lifetime'])}\n\n"
+            stats += f"  Daily Total: {self.format_hours_minutes_seconds(stats_dict['daily'])}\n"
+            stats += f"  Weekly Total: {self.format_hours_minutes_seconds(stats_dict['weekly'])}\n"
+            stats += f"  Lifetime Total: {self.format_hours_minutes_seconds(stats_dict['lifetime'])}\n\n"
 
-        stats += f"Overall Daily Total: {self.format_hours_minutes(overall_daily)}\n"
-        stats += f"Overall Weekly Total: {self.format_hours_minutes(overall_weekly)}\n"
-        stats += f"Overall Lifetime Total: {self.format_hours_minutes(overall_lifetime)}\n"  # Add overall lifetime total
+        stats += (
+            f"Overall Daily Total: {self.format_hours_minutes_seconds(overall_daily)}\n"
+        )
+        stats += f"Overall Weekly Total: {self.format_hours_minutes_seconds(overall_weekly)}\n"
+        stats += f"Overall Lifetime Total: {self.format_hours_minutes_seconds(overall_lifetime)}\n"
 
         rumps.alert(stats, "Stopwatch Statistics")
-
 
 
 if __name__ == "__main__":
