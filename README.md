@@ -9,6 +9,8 @@ Features
 - Allows you to track how much work you do and save the results to custom categories.
 - Provides statistics with daily, weekly, and total time spent in each category.
 
+![Example Stats](<screenshots/Deep Work Timer statistics.png>)
+
 Installation
 ------------
 As a python script:
