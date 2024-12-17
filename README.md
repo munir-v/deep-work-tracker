@@ -2,7 +2,7 @@
 
 A simple menu bar app for Mac that helps you track your deep work blocks.
 
-![Deep Work Timer](<Deep Work Timer example.png>)
+![Deep Work Timer](<screenshots/Deep Work Timer example.png>)
 
 Features
 --------
