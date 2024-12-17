@@ -4,6 +4,7 @@ import sys
 from datetime import datetime, timedelta
 from functools import partial
 from pathlib import Path
+import shutil  # Added for file operations
 
 import rumps
 from AppKit import NSAlertFirstButtonReturn, NSApp, NSTextField, NSView
@@ -357,11 +358,20 @@ class StopwatchApp(rumps.App):
 
     def delete_category(self, category_name, _) -> None:
         """
-        Delete a category by name.
-
+        Delete a category by name, after creating a backup of the data.json file.
+        
         :param category_name: The category to delete.
         """
         if category_name in self.data["categories"]:
+            # Create a backup of data.json before deletion
+            backup_dir = self.APP_SUPPORT_DIR / "backup"
+            backup_dir.mkdir(parents=True, exist_ok=True)
+            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            backup_filename = f"data_backup_{timestamp}_{category_name}.json"
+            backup_path = backup_dir / backup_filename
+            shutil.copy(self.data_path, backup_path)
+
+            # Proceed with deletion
             del self.data["categories"][category_name]
             self.save_data()
             self.build_categories_menu()
