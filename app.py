@@ -1,10 +1,9 @@
-import json
 import os
 import sys
 from datetime import datetime, timedelta
 from functools import partial
 from pathlib import Path
-import shutil  # Added for file operations
+import shutil
 
 import rumps
 from AppKit import NSAlertFirstButtonReturn, NSApp, NSTextField, NSView
@@ -51,6 +50,10 @@ class StopwatchApp(rumps.App):
         settings_item.add(rumps.MenuItem("Add Category", callback=self.add_category))
         settings_item.add(
             rumps.MenuItem("Open Data File Location", callback=self.open_data_location)
+        )
+        # Add the new setting to open the app support directory
+        settings_item.add(
+            rumps.MenuItem("Open App Support Directory", callback=self.open_app_support_dir)
         )
 
         self.menu = [
@@ -137,6 +140,10 @@ class StopwatchApp(rumps.App):
     def open_data_location(self, _) -> None:
         """Open the data file location in Finder."""
         os.system(f'open "{self.data_path}"')
+
+    def open_app_support_dir(self, _) -> None:
+        """Open the Application Support directory in Finder."""
+        os.system(f'open "{self.APP_SUPPORT_DIR}"')
 
     def update_time(self, _) -> None:
         """Update the displayed time each second when the stopwatch is running."""
@@ -359,7 +366,7 @@ class StopwatchApp(rumps.App):
     def delete_category(self, category_name, _) -> None:
         """
         Delete a category by name, after creating a backup of the data.json file.
-        
+
         :param category_name: The category to delete.
         """
         if category_name in self.data["categories"]:
@@ -417,7 +424,7 @@ class StopwatchApp(rumps.App):
         return f"{hrs}:{mins:02d}:{secs:02d}"
 
     def show_statistics(self, _) -> None:
-        """Show statistics for each category (daily, weekly, lifetime) with detailed time formatting."""
+        """Show statistics for each category (daily, weekly, lifetime)."""
         if not self.data["categories"]:
             rumps.alert("No categories available to show statistics.")
             return
