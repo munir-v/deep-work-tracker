@@ -65,6 +65,8 @@ class StopwatchApp(rumps.App):
             "Reset and Save",
             rumps.MenuItem("Manual Entry", callback=self.add_entry),
             rumps.MenuItem("Statistics", callback=self.show_statistics),
+            None,
+            None,
             settings_item,
         ]
 
@@ -125,7 +127,7 @@ class StopwatchApp(rumps.App):
 
         # Remove old categories
         for key in list(self.menu.keys()):
-            if key not in keep_items and key in self.menu:
+            if key not in keep_items and key in self.menu and not "SeparatorMenuItem" in str(self.menu[key]):
                 del self.menu[key]
 
         # Insert categories after "Statistics"
