@@ -5,7 +5,7 @@ DATA_FILES = []
 OPTIONS = {
     'argv_emulation': False,
     'plist': {
-        'LSUIElement': True,  # Hides the dock icon, keeping the app in the menu bar
+        'LSUIElement': True, 
     },
     'packages': ['rumps', 'AppKit', 'Cocoa'], 
     'includes': ['imp'],
