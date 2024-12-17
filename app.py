@@ -63,9 +63,10 @@ class StopwatchApp(rumps.App):
             "Start/Resume",
             "Pause",
             "Reset and Save",
+            None,
             rumps.MenuItem("Manual Entry", callback=self.add_entry),
             rumps.MenuItem("Statistics", callback=self.show_statistics),
-            None,
+            rumps.MenuItem("Categories"),
             None,
             settings_item,
         ]
@@ -115,31 +116,21 @@ class StopwatchApp(rumps.App):
             json.dump(self.data, f, indent=2)
 
     def build_categories_menu(self):
-        keep_items = {
-            "Start/Resume",
-            "Pause",
-            "Reset and Save",
-            "Manual Entry",
-            "Statistics",
-            "Settings",
-            "Quit",
-        }
+        if "Categories" not in self.menu:
+            self.menu.insert_after("Statistics", rumps.MenuItem("Categories"))
 
-        # Remove old categories
-        for key in list(self.menu.keys()):
-            if key not in keep_items and key in self.menu and not "SeparatorMenuItem" in str(self.menu[key]):
-                del self.menu[key]
+        categories_item = self.menu["Categories"]
 
-        # Insert categories after "Statistics"
-        insert_after = "Statistics"
+        for key in list(categories_item.keys()):
+            del categories_item[key]
+
         for cat in self.data["categories"].keys():
             cat_item = rumps.MenuItem(cat)
             delete_item = rumps.MenuItem(
                 "Delete Category", callback=partial(self.delete_category, cat)
             )
             cat_item.add(delete_item)
-            self.menu.insert_after(insert_after, cat_item)
-            insert_after = cat
+            categories_item.add(cat_item)
 
     def open_data_location(self, _) -> None:
         """Open the data file location in Finder."""
