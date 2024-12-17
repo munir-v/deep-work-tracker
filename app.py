@@ -490,7 +490,7 @@ class StopwatchApp(rumps.App):
             overall_weekly += weekly
             overall_lifetime += lifetime
 
-        stats = "Stopwatch Statistics:\n\n"
+        stats = "Deep Work Statistics:\n\n"
         for category, stats_dict in per_category_stats.items():
             stats += f"{category}\n"
             stats += f"  Daily Total: {self.format_hours_minutes_seconds(stats_dict['daily'])}\n"
@@ -503,7 +503,7 @@ class StopwatchApp(rumps.App):
         stats += f"Overall Weekly Total: {self.format_hours_minutes_seconds(overall_weekly)}\n"
         stats += f"Overall Lifetime Total: {self.format_hours_minutes_seconds(overall_lifetime)}\n"
 
-        rumps.alert(stats, "Stopwatch Statistics")
+        rumps.alert(stats)
 
 
 if __name__ == "__main__":
