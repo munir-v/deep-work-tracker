@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 from datetime import datetime, timedelta
@@ -42,28 +43,27 @@ class StopwatchApp(rumps.App):
         self.load_settings()
         self.load_data()
 
-        # Build menu
+        # Build the settings menu
         settings_item = rumps.MenuItem("Settings")
-        settings_item.add(
-            rumps.MenuItem("Start at startup", callback=self.toggle_startup)
-        )
+        settings_item.add(rumps.MenuItem("Start at startup", callback=self.toggle_startup))
         settings_item.add(rumps.MenuItem("Add Category", callback=self.add_category))
-        settings_item.add(
-            rumps.MenuItem("Open Data File Location", callback=self.open_data_location)
-        )
-        # Add the new setting to open the app support directory
-        settings_item.add(
-            rumps.MenuItem("Open App Support Directory", callback=self.open_app_support_dir)
-        )
+        settings_item.add(rumps.MenuItem("Open Data File Location", callback=self.open_data_location))
+        settings_item.add(rumps.MenuItem("Open App Support Directory", callback=self.open_app_support_dir))
 
+        # Arrange menu items:
+        # - "Settings" appears second to last (right before "Quit")
+        # - Add a menu break below "Statistics" and a break above "Settings"
         self.menu = [
             "Start/Resume",
             "Pause",
             "Reset and Save",
             None,
-            settings_item,
             rumps.MenuItem("Manual Entry", callback=self.add_entry),
             rumps.MenuItem("Statistics", callback=self.show_statistics),
+            None,  # Break below "Statistics"
+            None,  # Break above "Settings"
+            settings_item,
+            # "Quit" is automatically placed at the end by rumps because of quit_button="Quit"
         ]
 
         self.menu["Settings"]["Start at startup"].state = self.start_at_startup
@@ -115,10 +115,10 @@ class StopwatchApp(rumps.App):
             "Start/Resume",
             "Pause",
             "Reset and Save",
-            "Settings",
             "Manual Entry",
             "Statistics",
-            "Quit",  # Include Quit here
+            "Settings",
+            "Quit",
         }
 
         # Remove old categories
@@ -126,13 +126,11 @@ class StopwatchApp(rumps.App):
             if key not in keep_items and key in self.menu:
                 del self.menu[key]
 
-        # Add categories
+        # Insert categories after "Statistics"
         insert_after = "Statistics"
         for cat in self.data["categories"].keys():
             cat_item = rumps.MenuItem(cat)
-            delete_item = rumps.MenuItem(
-                "Delete Category", callback=partial(self.delete_category, cat)
-            )
+            delete_item = rumps.MenuItem("Delete Category", callback=partial(self.delete_category, cat))
             cat_item.add(delete_item)
             self.menu.insert_after(insert_after, cat_item)
             insert_after = cat
@@ -234,9 +232,7 @@ class StopwatchApp(rumps.App):
         entry = {"date": datetime.now().isoformat(), "time": time_value}
         self.data["categories"][category_name].append(entry)
         self.save_data()
-        rumps.notification(
-            "Stopwatch", "Data Saved", f"Time saved under '{category_name}'."
-        )
+        rumps.notification("Stopwatch", "Data Saved", f"Time saved under '{category_name}'.")
 
     def select_category(self, categories: list) -> str:
         """
@@ -252,14 +248,11 @@ class StopwatchApp(rumps.App):
 
         view_width = 300
         view_height = 24
-        combobox = NSComboBox.alloc().initWithFrame_(
-            NSRect(NSPoint(0, 0), NSSize(view_width, view_height))
-        )
+        combobox = NSComboBox.alloc().initWithFrame_(NSRect(NSPoint(0, 0), NSSize(view_width, view_height)))
         combobox.addItemsWithObjectValues_(categories)
         combobox.selectItemAtIndex_(0)
         alert.setAccessoryView_(combobox)
 
-        # Set the position of the alert
         alert_window = alert.window()
         screen_frame = NSScreen.mainScreen().frame()
         alert_width = 600
@@ -267,11 +260,7 @@ class StopwatchApp(rumps.App):
 
         alert_x = screen_frame.size.width - alert_width
         alert_y = screen_frame.size.height - alert_height
-        alert_window.setFrame_display_animate_(
-            NSRect(NSPoint(alert_x, alert_y), NSSize(alert_width, alert_height)),
-            True,
-            False,
-        )
+        alert_window.setFrame_display_animate_(NSRect(NSPoint(alert_x, alert_y), NSSize(alert_width, alert_height)), True, False)
 
         alert.window().makeKeyAndOrderFront_(None)
         NSApp.activateIgnoringOtherApps_(True)
@@ -298,9 +287,7 @@ class StopwatchApp(rumps.App):
 
         width = 300
         height = 24
-        textfield = NSTextField.alloc().initWithFrame_(
-            NSRect(NSPoint(0, 0), NSSize(width, height))
-        )
+        textfield = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(0, 0), NSSize(width, height)))
         alert.setAccessoryView_(textfield)
 
         alert.window().makeKeyAndOrderFront_(None)
@@ -320,9 +307,7 @@ class StopwatchApp(rumps.App):
         """
         alert = NSAlert.alloc().init()
         alert.setMessageText_("Manual Entry")
-        alert.setInformativeText_(
-            "Enter a date/time (mm/dd/yy hh:mm) and time in minutes:"
-        )
+        alert.setInformativeText_("Enter a date/time (mm/dd/yy hh:mm) and time in minutes:")
         alert.addButtonWithTitle_("OK")
         alert.addButtonWithTitle_("Cancel")
 
@@ -330,19 +315,13 @@ class StopwatchApp(rumps.App):
         container_height = 60
         current_dt_str = datetime.now().strftime("%m/%d/%y %H:%M")
 
-        datetime_field = NSTextField.alloc().initWithFrame_(
-            NSRect(NSPoint(0, 30), NSSize(container_width, 24))
-        )
+        datetime_field = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(0, 30), NSSize(container_width, 24)))
         datetime_field.setStringValue_(current_dt_str)
 
-        time_field = NSTextField.alloc().initWithFrame_(
-            NSRect(NSPoint(0, 0), NSSize(container_width, 24))
-        )
+        time_field = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(0, 0), NSSize(container_width, 24)))
         time_field.setPlaceholderString_("Time in minutes")
 
-        container_view = NSView.alloc().initWithFrame_(
-            NSRect(NSPoint(0, 0), NSSize(container_width, container_height))
-        )
+        container_view = NSView.alloc().initWithFrame_(NSRect(NSPoint(0, 0), NSSize(container_width, container_height)))
         container_view.addSubview_(time_field)
         container_view.addSubview_(datetime_field)
         alert.setAccessoryView_(container_view)
@@ -411,9 +390,7 @@ class StopwatchApp(rumps.App):
         entry = {"date": date_value.isoformat(), "time": time_minutes}
         self.data["categories"][category_name].append(entry)
         self.save_data()
-        rumps.notification(
-            "Stopwatch", "Data Saved", f"Entry saved under '{category_name}'."
-        )
+        rumps.notification("Stopwatch", "Data Saved", f"Entry saved under '{category_name}'.")
 
     def format_hours_minutes_seconds(self, minutes: float) -> str:
         """Format time in minutes as H:MM:SS."""
@@ -474,9 +451,7 @@ class StopwatchApp(rumps.App):
             stats += f"  Weekly Total: {self.format_hours_minutes_seconds(stats_dict['weekly'])}\n"
             stats += f"  Lifetime Total: {self.format_hours_minutes_seconds(stats_dict['lifetime'])}\n\n"
 
-        stats += (
-            f"Overall Daily Total: {self.format_hours_minutes_seconds(overall_daily)}\n"
-        )
+        stats += (f"Overall Daily Total: {self.format_hours_minutes_seconds(overall_daily)}\n")
         stats += f"Overall Weekly Total: {self.format_hours_minutes_seconds(overall_weekly)}\n"
         stats += f"Overall Lifetime Total: {self.format_hours_minutes_seconds(overall_lifetime)}\n"
 
