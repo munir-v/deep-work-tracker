@@ -6,8 +6,7 @@ A simple menu bar app for Mac that helps you track your deep work blocks.
 
 Features
 --------
-- Allows you to track the time of your deep work blocks.
-- Lets you save the timer results to custom categories.
+- Allows you to track how much work you do and save the results to custom categories.
 - Provides statistics with daily, weekly, and total time spent in each category.
 
 Installation
@@ -34,4 +33,4 @@ As a standalone application:
     python3 setup.py py2app
     ```
 3. Launch application by double-clicking app or open via Terminal.
-4. (Optional) Move application to application folder and add to Login Items to launch on system startup.
+4. (Optional) Move application to application folder and enable the "Start at Startup" to launch on system startup.
