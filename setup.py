@@ -9,6 +9,7 @@ OPTIONS = {
     },
     'packages': ['rumps', 'AppKit', 'Cocoa'], 
     'includes': ['imp'],
+    'iconfile': 'icons/icon.icns',
 }
 
 setup(
