@@ -10,6 +10,9 @@ import rumps
 from AppKit import NSAlertFirstButtonReturn, NSApp, NSTextField, NSView
 from Cocoa import NSAlert, NSComboBox, NSPoint, NSRect, NSSize, NSScreen
 
+DEBUGGING_MODE = True
+
+
 class StopwatchApp(rumps.App):
     """
     A menu bar stopwatch application that tracks time spent on various categories.
@@ -28,6 +31,8 @@ class StopwatchApp(rumps.App):
     )
     SETTINGS_FILENAME = "settings.json"
     DATA_FILENAME = "data.json"
+    if DEBUGGING_MODE:
+        DATA_FILENAME = "data_debug.json"
 
     def __init__(self):
         super().__init__("0:00:00", quit_button="Quit")
@@ -57,6 +62,9 @@ class StopwatchApp(rumps.App):
                 "Open App Support Directory", callback=self.open_app_support_dir
             )
         )
+        settings_item.add(
+            rumps.MenuItem("Reload Data File", callback=self.reload_data)
+        )  
 
         self.menu = [
             "Start/Resume",
@@ -108,6 +116,19 @@ class StopwatchApp(rumps.App):
 
         with open(self.data_path, "r", encoding="utf-8") as f:
             self.data = json.load(f)
+
+    def reload_data(self, _) -> None:
+        """Reload data from the JSON file."""
+        try:
+            self.load_data()
+            self.build_categories_menu()
+            rumps.notification(
+                "Settings",
+                "Reload Complete",
+                "The data file has been reloaded successfully.",
+            )
+        except Exception as e:
+            rumps.alert(f"Error reloading data file: {e}")
 
     def save_data(self) -> None:
         """Save data to JSON file."""
