@@ -26,7 +26,7 @@ As a python script:
 3. Run the `app.py` script:
 
     ```
-    python3 app.py
+    python app.py
     ```
 
 As a standalone application:
@@ -34,7 +34,7 @@ As a standalone application:
 2. Build the app using the preconfigured setup.py file
 
     ```
-    python3 setup.py py2app
+    python setup.py py2app
     ```
 3. Launch application by double-clicking app or open via Terminal.
 4. (Optional) Move application to application folder and enable the "Start at Startup" to launch on system startup.
