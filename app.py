@@ -51,7 +51,7 @@ class StopwatchApp(rumps.App):
         )
         settings_item.add(rumps.MenuItem("Add Category", callback=self.add_category))
         settings_item.add(
-            rumps.MenuItem("Open Data File Location", callback=self.open_data_location)
+            rumps.MenuItem("Open Data File", callback=self.open_data_location)
         )
         settings_item.add(
             rumps.MenuItem(
