@@ -10,7 +10,6 @@ import rumps
 from AppKit import NSAlertFirstButtonReturn, NSApp, NSTextField, NSView
 from Cocoa import NSAlert, NSComboBox, NSPoint, NSRect, NSSize, NSScreen
 
-
 class StopwatchApp(rumps.App):
     """
     A menu bar stopwatch application that tracks time spent on various categories.
@@ -229,9 +228,6 @@ class StopwatchApp(rumps.App):
         entry = {"date": datetime.now().isoformat(), "time": time_value}
         self.data["categories"][category_name].append(entry)
         self.save_data()
-        rumps.notification(
-            "Stopwatch", "Data Saved", f"Time saved under '{category_name}'."
-        )
 
     def select_category(self, categories: list) -> str:
         """
@@ -385,7 +381,6 @@ class StopwatchApp(rumps.App):
                 return None, None
         return None, None
 
-
     def delete_category(self, category_name, _) -> None:
         """
         Delete a category by name, after creating a backup of the data.json file.
@@ -428,15 +423,24 @@ class StopwatchApp(rumps.App):
             return
 
         date_value, time_minutes = self.get_date_time_input()
-        if date_value is None or time_minutes is None:
+        if date_value is None:
+            return
+        try:
+            time_minutes = float(time_minutes)
+            if time_minutes <= 0:
+                rumps.alert(
+                    "Invalid input. Please enter a positive number for time in minutes."
+                )
+                return
+        except (ValueError, TypeError):
+            rumps.alert(
+                "Invalid input. Please enter a valid numeric value for time in minutes."
+            )
             return
 
         entry = {"date": date_value.isoformat(), "time": time_minutes}
         self.data["categories"][category_name].append(entry)
         self.save_data()
-        rumps.notification(
-            "Stopwatch", "Data Saved", f"Entry saved under '{category_name}'."
-        )
 
     def format_hours_minutes_seconds(self, minutes: float) -> str:
         """Format time in minutes as H:MM:SS."""
