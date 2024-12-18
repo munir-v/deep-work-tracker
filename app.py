@@ -10,7 +10,7 @@ import rumps
 from AppKit import NSAlertFirstButtonReturn, NSApp, NSTextField, NSView
 from Cocoa import NSAlert, NSComboBox, NSPoint, NSRect, NSSize, NSScreen
 
-DEBUGGING_MODE = True
+# DEBUGGING_MODE = True
 
 
 class StopwatchApp(rumps.App):
@@ -31,6 +31,7 @@ class StopwatchApp(rumps.App):
     )
     SETTINGS_FILENAME = "settings.json"
     DATA_FILENAME = "data.json"
+    DEBUGGING_MODE = False
     if DEBUGGING_MODE:
         DATA_FILENAME = "data_debug.json"
 
@@ -58,13 +59,9 @@ class StopwatchApp(rumps.App):
             rumps.MenuItem("Open Data File", callback=self.open_data_location)
         )
         settings_item.add(
-            rumps.MenuItem(
-                "Open App Support Directory", callback=self.open_app_support_dir
-            )
+            rumps.MenuItem("Open Support Directory", callback=self.open_app_support_dir)
         )
-        settings_item.add(
-            rumps.MenuItem("Reload Data File", callback=self.reload_data)
-        )  
+        settings_item.add(rumps.MenuItem("Reload Data File", callback=self.reload_data))
 
         self.menu = [
             "Start/Resume",
@@ -346,7 +343,7 @@ class StopwatchApp(rumps.App):
         alert = NSAlert.alloc().init()
         alert.setMessageText_("Manual Entry")
         alert.setInformativeText_(
-            "Enter a date/time (mm/dd/yy hh:mm) and time in minutes:"
+            "Enter a date/time (MM/DD/YY HH:MM) and time in minutes:"
         )
         alert.addButtonWithTitle_("OK")
         alert.addButtonWithTitle_("Cancel")
@@ -372,7 +369,6 @@ class StopwatchApp(rumps.App):
         container_view.addSubview_(datetime_field)
         alert.setAccessoryView_(container_view)
 
-        # Position the alert window the same way as select_category
         alert_window = alert.window()
         screen_frame = NSScreen.mainScreen().frame()
         alert_width = 600
@@ -394,12 +390,26 @@ class StopwatchApp(rumps.App):
         if response == NSAlertFirstButtonReturn:
             datetime_str = datetime_field.stringValue().strip()
             time_str = time_field.stringValue().strip()
+
             try:
                 date_value = datetime.strptime(datetime_str, "%m/%d/%y %H:%M")
-                time_minutes = float(time_str)
-                return date_value, time_minutes
-            except (ValueError, TypeError):
+            except ValueError:
+                rumps.alert(
+                    "Invalid date/time format. Please enter in MM/DD/YY HH:MM format."
+                )
                 return None, None
+
+            try:
+                time_minutes = float(time_str)
+                if time_minutes <= 0:
+                    rumps.alert(
+                        "Invalid input. Please enter a positive number for time in minutes."
+                    )
+                return date_value, time_minutes
+            except ValueError:
+                rumps.alert("Invalid time in minutes. Please enter a numeric value.")
+                return None, None
+
         return None, None
 
     def delete_category(self, category_name, _) -> None:
@@ -443,20 +453,14 @@ class StopwatchApp(rumps.App):
         if not category_name:
             return
 
-        date_value, time_minutes = self.get_date_time_input()
-        if date_value is None:
-            return
-        try:
-            time_minutes = float(time_minutes)
-            if time_minutes <= 0:
-                rumps.alert(
-                    "Invalid input. Please enter a positive number for time in minutes."
-                )
-                return
-        except (ValueError, TypeError):
+        if category_name not in self.data["categories"]:
             rumps.alert(
-                "Invalid input. Please enter a valid numeric value for time in minutes."
+                f"Invalid category name: '{category_name}'. Please select a valid category."
             )
+            return
+
+        date_value, time_minutes = self.get_date_time_input()
+        if date_value is None or time_minutes is None:
             return
 
         entry = {"date": date_value.isoformat(), "time": time_minutes}
