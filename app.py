@@ -62,9 +62,7 @@ class StopwatchApp(rumps.App):
                 "Open App Support Directory", callback=self.open_app_support_dir
             )
         )
-        settings_item.add(
-            rumps.MenuItem("Reload Data File", callback=self.reload_data)
-        )  
+        settings_item.add(rumps.MenuItem("Reload Data File", callback=self.reload_data))
 
         self.menu = [
             "Start/Resume",
@@ -269,6 +267,8 @@ class StopwatchApp(rumps.App):
         )
         combobox.addItemsWithObjectValues_(categories)
         combobox.selectItemAtIndex_(0)
+        combobox.setEditable_(False)  # Disable text input, allowing only selection
+
         alert.setAccessoryView_(combobox)
 
         alert_window = alert.window()
@@ -290,7 +290,9 @@ class StopwatchApp(rumps.App):
         response = alert.runModal()
 
         if response == NSAlertFirstButtonReturn:
-            return combobox.stringValue()
+            selected_index = combobox.indexOfSelectedItem()
+            if selected_index != -1:
+                return categories[selected_index]
         return None
 
     def get_text_input(self, title: str, message: str) -> str:
@@ -444,8 +446,15 @@ class StopwatchApp(rumps.App):
             return
 
         date_value, time_minutes = self.get_date_time_input()
-        if date_value is None:
+        if date_value is None or time_minutes is None:
             return
+
+        try:
+            formatted_date = date_value.strftime("%m/%d/%y %H:%M")
+        except ValueError:
+            rumps.alert("Invalid date format. Please use MM/DD/YY HH:MM format.")
+            return
+
         try:
             time_minutes = float(time_minutes)
             if time_minutes <= 0:
@@ -462,6 +471,9 @@ class StopwatchApp(rumps.App):
         entry = {"date": date_value.isoformat(), "time": time_minutes}
         self.data["categories"][category_name].append(entry)
         self.save_data()
+        rumps.notification(
+            "Stopwatch", "Data Saved", f"Entry saved under '{category_name}'."
+        )
 
     def format_hours_minutes_seconds(self, minutes: float) -> str:
         """Format time in minutes as H:MM:SS."""
