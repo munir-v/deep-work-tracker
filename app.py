@@ -476,7 +476,8 @@ class StopwatchApp(rumps.App):
         return f"{hrs}:{mins:02d}:{secs:02d}"
 
     def show_statistics(self, _) -> None:
-        """Show statistics for each category (daily, weekly, lifetime)."""
+        """Show statistics with daily, weekly, and lifetime totals first,
+        then list each category's contribution under those totals."""
         if not self.data["categories"]:
             rumps.alert("No categories available to show statistics.")
             return
@@ -520,17 +521,22 @@ class StopwatchApp(rumps.App):
             overall_lifetime += lifetime
 
         stats = "Deep Work Statistics:\n\n"
+
+        stats += f"Daily Total: {self.format_hours_minutes_seconds(overall_daily)}\n"
         for category, stats_dict in per_category_stats.items():
-            stats += f"{category}\n"
-            stats += f"  Daily Total: {self.format_hours_minutes_seconds(stats_dict['daily'])}\n"
-            stats += f"  Weekly Total: {self.format_hours_minutes_seconds(stats_dict['weekly'])}\n"
-            stats += f"  Lifetime Total: {self.format_hours_minutes_seconds(stats_dict['lifetime'])}\n\n"
+            stats += f"  {category}: {self.format_hours_minutes_seconds(stats_dict['daily'])}\n"
+        stats += "\n"
+
+        stats += f"Weekly Total: {self.format_hours_minutes_seconds(overall_weekly)}\n"
+        for category, stats_dict in per_category_stats.items():
+            stats += f"  {category}: {self.format_hours_minutes_seconds(stats_dict['weekly'])}\n"
+        stats += "\n"
 
         stats += (
-            f"Overall Daily Total: {self.format_hours_minutes_seconds(overall_daily)}\n"
+            f"Lifetime Total: {self.format_hours_minutes_seconds(overall_lifetime)}\n"
         )
-        stats += f"Overall Weekly Total: {self.format_hours_minutes_seconds(overall_weekly)}\n"
-        stats += f"Overall Lifetime Total: {self.format_hours_minutes_seconds(overall_lifetime)}\n"
+        for category, stats_dict in per_category_stats.items():
+            stats += f"  {category}: {self.format_hours_minutes_seconds(stats_dict['lifetime'])}\n"
 
         rumps.alert(stats)
 
