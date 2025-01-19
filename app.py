@@ -10,8 +10,7 @@ import rumps
 from AppKit import NSAlertFirstButtonReturn, NSApp, NSTextField, NSView
 from Cocoa import NSAlert, NSComboBox, NSPoint, NSRect, NSSize, NSScreen
 
-# DEBUGGING_MODE = True
-
+DEBUGGING_MODE = True
 
 class StopwatchApp(rumps.App):
     """
@@ -31,7 +30,6 @@ class StopwatchApp(rumps.App):
     )
     SETTINGS_FILENAME = "settings.json"
     DATA_FILENAME = "data.json"
-    DEBUGGING_MODE = False
     if DEBUGGING_MODE:
         DATA_FILENAME = "data_debug.json"
 
@@ -64,7 +62,7 @@ class StopwatchApp(rumps.App):
         settings_item.add(rumps.MenuItem("Reload Data File", callback=self.reload_data))
 
         self.menu = [
-            "Start/Resume",
+            "Start/Resume Stopwatch",
             "Pause",
             "Reset and Save",
             None,
@@ -175,9 +173,9 @@ class StopwatchApp(rumps.App):
         mins = minutes - (hrs * 60)
         return f"{hrs}:{mins:05.2f}"
 
-    @rumps.clicked("Start/Resume")
+    @rumps.clicked("Start/Resume Stopwatch")
     def start_resume(self, _) -> None:
-        """Start or resume the timer."""
+        """Start or resume the stopwatch."""
         if not self.running:
             self.timer.start()
             self.running = True
