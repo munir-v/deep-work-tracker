@@ -12,6 +12,7 @@ from Cocoa import NSAlert, NSComboBox, NSPoint, NSRect, NSSize, NSScreen
 
 DEBUGGING_MODE = True
 
+
 class StopwatchApp(rumps.App):
     """
     A menu bar stopwatch application that tracks time spent on various categories.
@@ -63,6 +64,9 @@ class StopwatchApp(rumps.App):
         )
         settings_item.add(rumps.MenuItem("Add Category", callback=self.add_category))
         settings_item.add(
+            rumps.MenuItem("Change Timer Duration", callback=self.change_timer_duration)
+        )
+        settings_item.add(
             rumps.MenuItem("Open Data File", callback=self.open_data_location)
         )
         settings_item.add(
@@ -72,9 +76,10 @@ class StopwatchApp(rumps.App):
 
         # Build the main menu
         # We'll insert our new "Timer Mode" toggle + separator above the start/resume item
-        self.timer_mode_item = rumps.MenuItem("Timer Mode", callback=self.toggle_timer_mode)
+        self.timer_mode_item = rumps.MenuItem(
+            "Timer Mode", callback=self.toggle_timer_mode
+        )
         self.timer_mode_item.state = self.is_timer_mode
-
 
         self.menu = [
             None,  # We'll insert timer_mode_item at the top
@@ -114,6 +119,8 @@ class StopwatchApp(rumps.App):
             with open(self.settings_path, "r", encoding="utf-8") as f:
                 settings = json.load(f)
                 self.start_at_startup = settings.get("start_at_startup", False)
+                # Add or update the following line:
+                self.timer_duration = settings.get("timer_minutes", 90) * 60
         except FileNotFoundError:
             pass
 
@@ -121,9 +128,40 @@ class StopwatchApp(rumps.App):
         """Save settings to JSON file."""
         settings = {
             "start_at_startup": self.start_at_startup,
+            # Add or update the following line:
+            "timer_minutes": self.timer_duration // 60,
         }
         with open(self.settings_path, "w", encoding="utf-8") as f:
             json.dump(settings, f, indent=2)
+
+    def change_timer_duration(self, _):
+        new_timer_str = self.get_text_input(
+            "Change Default Timer Duration",
+            "Enter the default timer value (in minutes):"
+        )
+        if not new_timer_str:
+            return  # User cancelled
+
+        try:
+            new_timer_val = int(new_timer_str)
+            if new_timer_val <= 0:
+                rumps.alert("Invalid number of minutes. Must be greater than 0.")
+                return
+
+            # Update the default timer duration
+            self.timer_duration = new_timer_val * 60
+
+            # If the user is currently in Timer Mode (not Stopwatch), 
+            # update the 'time_remaining' immediately so the change takes effect:
+            if self.is_timer_mode:
+                self.time_remaining = self.timer_duration
+
+            self.save_settings()
+
+            rumps.alert(f"Default timer changed to {new_timer_val} minutes.")
+        except ValueError:
+            rumps.alert("Invalid input. Please enter a valid integer for minutes.")
+
 
     def load_data(self) -> None:
         """Load data from JSON file, creating it if it doesn't exist."""
@@ -154,7 +192,7 @@ class StopwatchApp(rumps.App):
             json.dump(self.data, f, indent=2)
 
     def build_categories_menu(self):
-        """Rebuild the 'Categories' submenu based on self.data['categories']. """
+        """Rebuild the 'Categories' submenu based on self.data['categories']."""
         if "Categories" not in self.menu:
             self.menu.insert_after("Statistics", rumps.MenuItem("Categories"))
 
