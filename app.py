@@ -36,11 +36,19 @@ class StopwatchApp(rumps.App):
     def __init__(self):
         super().__init__("0:00:00", quit_button="Quit")
 
-        self.time_elapsed = 0
+        # --- Timer vs. Stopwatch mode ---
+        self.is_timer_mode = True  # True => Timer mode, False => Stopwatch mode
+        self.timer_duration = 90 * 60  # 90 minutes in seconds
+        self.time_remaining = self.timer_duration
+
+        self.time_elapsed = 0  # Used for stopwatch mode
         self.running = False
         self.start_at_startup = False
 
+        # We reuse a single rumps.Timer for both modes; in update_time() we
+        # decide whether to increment or decrement based on self.is_timer_mode.
         self.timer = rumps.Timer(self.update_time, 1)
+
         self.settings_path = self.get_settings_path()
         self.data_path = self.get_data_path()
         self.data = {}
@@ -48,6 +56,7 @@ class StopwatchApp(rumps.App):
         self.load_settings()
         self.load_data()
 
+        # Settings submenu
         settings_item = rumps.MenuItem("Settings")
         settings_item.add(
             rumps.MenuItem("Start at startup", callback=self.toggle_startup)
@@ -61,10 +70,17 @@ class StopwatchApp(rumps.App):
         )
         settings_item.add(rumps.MenuItem("Reload Data File", callback=self.reload_data))
 
+        # Build the main menu
+        # We'll insert our new "Timer Mode" toggle + separator above the start/resume item
+        self.timer_mode_item = rumps.MenuItem("Timer Mode", callback=self.toggle_timer_mode)
+        self.timer_mode_item.state = self.is_timer_mode
+
+
         self.menu = [
+            None,  # We'll insert timer_mode_item at the top
             "Start/Resume Stopwatch",
-            "Pause",
-            "Reset and Save",
+            "Pause Stopwatch",
+            "Reset and Save Stopwatch",
             None,
             rumps.MenuItem("Manual Entry", callback=self.add_entry),
             rumps.MenuItem("Statistics", callback=self.show_statistics),
@@ -73,8 +89,15 @@ class StopwatchApp(rumps.App):
             settings_item,
         ]
 
+        # Insert the toggle item and separator
+        self.menu.insert_before("Start/Resume Stopwatch", self.timer_mode_item)
+        self.menu.insert_before("Start/Resume Stopwatch", None)
+
         self.menu["Settings"]["Start at startup"].state = self.start_at_startup
         self.build_categories_menu()
+
+        # Make sure menu labels match the initial mode (Timer Mode = True)
+        self.update_menu_labels()
 
     def get_settings_path(self) -> Path:
         """Ensure the application support directory exists and return the settings file path."""
@@ -131,14 +154,16 @@ class StopwatchApp(rumps.App):
             json.dump(self.data, f, indent=2)
 
     def build_categories_menu(self):
+        """Rebuild the 'Categories' submenu based on self.data['categories']. """
         if "Categories" not in self.menu:
             self.menu.insert_after("Statistics", rumps.MenuItem("Categories"))
 
         categories_item = self.menu["Categories"]
-
+        # Clear any old entries
         for key in list(categories_item.keys()):
             del categories_item[key]
 
+        # Add each known category
         for cat in self.data["categories"].keys():
             cat_item = rumps.MenuItem(cat)
             delete_item = rumps.MenuItem(
@@ -156,46 +181,51 @@ class StopwatchApp(rumps.App):
         os.system(f'open "{self.APP_SUPPORT_DIR}"')
 
     def update_time(self, _) -> None:
-        """Update the displayed time each second when the stopwatch is running."""
-        self.time_elapsed += 1
-        self.title = self.format_time(self.time_elapsed)
+        """
+        Called every second when running:
+        - Timer Mode: decrement time_remaining
+        - Stopwatch Mode: increment time_elapsed
+        """
+        if self.is_timer_mode:
+            self.time_remaining -= 1
+            if self.time_remaining <= 0:
+                # Timer just hit zero => automatically reset & save
+                self.time_remaining = 0
+                self.timer.stop()
+                self.running = False
+                self.title = "0:00:00"
+
+                # Save the just-finished session
+                self.save_timer_to_json()
+
+                # Reset timer
+                self.time_remaining = self.timer_duration
+                self.title = "0:00:00"
+
+                # Re-enable toggling
+                self.enable_timer_mode_switch()
+            else:
+                self.title = self.format_time(self.time_remaining)
+        else:
+            self.time_elapsed += 1
+            self.title = self.format_time(self.time_elapsed)
 
     def format_time(self, seconds: int) -> str:
-        """Format seconds as H:MM:SS."""
+        """Format integer seconds as H:MM:SS (for menubar display)."""
         hrs = seconds // 3600
         mins = (seconds % 3600) // 60
         secs = seconds % 60
         return f"{hrs}:{mins:02d}:{secs:02d}"
 
     def format_time_minutes(self, minutes: float) -> str:
-        """Format minutes as H:MM.mm."""
+        """Format minutes as H:MM.mm (used in statistics or saving functions)."""
         hrs = int(minutes) // 60
         mins = minutes - (hrs * 60)
         return f"{hrs}:{mins:05.2f}"
 
-    @rumps.clicked("Start/Resume Stopwatch")
-    def start_resume(self, _) -> None:
-        """Start or resume the stopwatch."""
-        if not self.running:
-            self.timer.start()
-            self.running = True
-
-    @rumps.clicked("Pause")
-    def pause(self, _) -> None:
-        """Pause the timer."""
-        if self.running:
-            self.timer.stop()
-            self.running = False
-
-    @rumps.clicked("Reset and Save")
-    def reset_and_save(self, _) -> None:
-        """Reset the timer and save the current recorded time to a category."""
-        self.timer.stop()
-        self.running = False
-        self.save_to_json()
-        self.time_elapsed = 0
-        self.title = "0:00:00"
-
+    # ------------------------------------------------------------------
+    # Preserve all original functions below without removing any of them
+    # ------------------------------------------------------------------
     def toggle_startup(self, sender) -> None:
         """Toggle whether the app starts at login."""
         sender.state = not sender.state
@@ -227,11 +257,163 @@ class StopwatchApp(rumps.App):
         """
         os.system(f"osascript -e '{script}'")
 
-    def save_to_json(self) -> None:
+    def delete_category(self, category_name, _) -> None:
         """
-        Save the current elapsed time to the selected category in data.json.
-        Prompts the user to select a category.
+        Delete a category by name, after creating a backup of the data.json file.
         """
+        if category_name in self.data["categories"]:
+            # Create a backup of data.json before deletion
+            backup_dir = self.APP_SUPPORT_DIR / "backup"
+            backup_dir.mkdir(parents=True, exist_ok=True)
+            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            backup_filename = f"data_backup_{timestamp}_{category_name}.json"
+            backup_path = backup_dir / backup_filename
+            shutil.copy(self.data_path, backup_path)
+
+            # Proceed with deletion
+            del self.data["categories"][category_name]
+            self.save_data()
+            self.build_categories_menu()
+
+    def add_category(self, _) -> None:
+        """Prompt the user to add a new category."""
+        name = self.get_text_input("Add Category", "Enter category name:")
+        if name:
+            if name not in self.data["categories"]:
+                self.data["categories"][name] = []
+                self.save_data()
+                self.build_categories_menu()
+            else:
+                rumps.alert("Category already exists.")
+
+    def add_entry(self, _) -> None:
+        """Prompt the user to add a manual time entry."""
+        if not self.data["categories"]:
+            rumps.alert("No categories available. Please add a category first.")
+            return
+
+        category_name = self.select_category(list(self.data["categories"].keys()))
+        if not category_name:
+            return
+
+        if category_name not in self.data["categories"]:
+            rumps.alert(
+                f"Invalid category name: '{category_name}'. Please select a valid category."
+            )
+            return
+
+        date_value, time_minutes = self.get_date_time_input()
+        if date_value is None or time_minutes is None:
+            return
+
+        entry = {"date": date_value.isoformat(), "time": time_minutes}
+        self.data["categories"][category_name].append(entry)
+        self.save_data()
+
+    def format_hours_minutes_seconds(self, minutes: float) -> str:
+        """Format time in minutes as H:MM:SS. Used in show_statistics()."""
+        total_seconds = int(round(minutes * 60))
+        hrs = total_seconds // 3600
+        mins = (total_seconds % 3600) // 60
+        secs = total_seconds % 60
+        return f"{hrs}:{mins:02d}:{secs:02d}"
+
+    # ------------------------------------------------------------------
+    # New or updated methods for Timer/Stopwatch combined usage
+    # ------------------------------------------------------------------
+    def update_menu_labels(self):
+        """Update the three main items' text based on Timer vs. Stopwatch mode."""
+        if self.is_timer_mode:
+            self.menu["Start/Resume Stopwatch"].title = "Start/Resume Timer"
+            self.menu["Pause Stopwatch"].title = "Pause Timer"
+            self.menu["Reset and Save Stopwatch"].title = "Reset and Save Timer"
+        else:
+            self.menu["Start/Resume Stopwatch"].title = "Start/Resume Stopwatch"
+            self.menu["Pause Stopwatch"].title = "Pause Stopwatch"
+            self.menu["Reset and Save Stopwatch"].title = "Reset and Save Stopwatch"
+
+    def disable_timer_mode_switch(self):
+        """Grey out the 'Timer Mode' item so it can't be toggled."""
+        if self.timer_mode_item._menuitem is not None:
+            self.timer_mode_item._menuitem.setEnabled_(False)
+
+    def enable_timer_mode_switch(self):
+        """Re-enable the 'Timer Mode' item so it can be toggled."""
+        if self.timer_mode_item._menuitem is not None:
+            self.timer_mode_item._menuitem.setEnabled_(True)
+
+    @rumps.clicked("Timer Mode")
+    def toggle_timer_mode(self, sender):
+        """Toggle between Timer mode and Stopwatch mode."""
+        # If something is running, don't allow toggling
+        if self.running:
+            return
+
+        self.is_timer_mode = not self.is_timer_mode
+        sender.state = self.is_timer_mode
+        self.update_menu_labels()
+
+        # Reset the menubar display & counters when switching modes
+        if self.is_timer_mode:
+            self.time_remaining = self.timer_duration
+            self.title = "0:00:00"
+        else:
+            self.time_elapsed = 0
+            self.title = "0:00:00"
+
+    @rumps.clicked("Start/Resume Stopwatch")
+    def start_resume(self, _):
+        """
+        Start or resume the timer/stopwatch.
+        When running, we also disable the Timer Mode toggle.
+        """
+        if not self.running:
+            self.running = True
+            self.timer.start()
+            self.disable_timer_mode_switch()
+
+    @rumps.clicked("Pause Stopwatch")
+    def pause(self, _):
+        """
+        Pause the timer/stopwatch.
+        Re-enable the Timer Mode toggle after pausing.
+        """
+        if self.running:
+            self.timer.stop()
+            self.running = False
+            self.enable_timer_mode_switch()
+
+    @rumps.clicked("Reset and Save Stopwatch")
+    def reset_and_save(self, _):
+        """
+        Reset and Save for either Stopwatch or Timer:
+        - Stopwatch: saves `self.time_elapsed`.
+        - Timer: saves the elapsed portion = (timer_duration - time_remaining).
+        Then resets back to 0 for Stopwatch or 90 mins for Timer.
+        """
+        self.timer.stop()
+        self.running = False
+        self.enable_timer_mode_switch()
+
+        if self.is_timer_mode:
+            # Timer
+            elapsed_seconds = self.timer_duration - self.time_remaining
+            self.save_timer_to_json(elapsed_seconds=elapsed_seconds)
+            # Reset to fresh 90
+            self.time_remaining = self.timer_duration
+            self.title = "0:00:00"
+        else:
+            # Stopwatch
+            self.save_stopwatch_to_json()
+            # Reset to 0
+            self.time_elapsed = 0
+            self.title = "0:00:00"
+
+    # ----------------------------
+    # Methods for saving sessions
+    # ----------------------------
+    def save_stopwatch_to_json(self):
+        """Prompt category selection and save `time_elapsed` (in minutes)."""
         if not self.data["categories"]:
             rumps.alert("No categories available. Please add a category first.")
             return
@@ -245,12 +427,34 @@ class StopwatchApp(rumps.App):
         self.data["categories"][category_name].append(entry)
         self.save_data()
 
+    def save_timer_to_json(self, elapsed_seconds=None):
+        """
+        Prompt category selection and save the 'elapsed_seconds' portion.
+        If elapsed_seconds is None, we compute from (timer_duration - time_remaining).
+        """
+        if elapsed_seconds is None:
+            elapsed_seconds = self.timer_duration - self.time_remaining
+
+        if not self.data["categories"]:
+            rumps.alert("No categories available. Please add a category first.")
+            return
+
+        category_name = self.select_category(list(self.data["categories"].keys()))
+        if not category_name:
+            return
+
+        time_value = round(elapsed_seconds / 60, 2)
+        entry = {"date": datetime.now().isoformat(), "time": time_value}
+        self.data["categories"][category_name].append(entry)
+        self.save_data()
+
+    # --------------------------------
+    # Existing UI/dialog code remains
+    # --------------------------------
     def select_category(self, categories: list) -> str:
         """
         Display a dialog with a combo box to select a category.
-
-        :param categories: A list of category names.
-        :return: The selected category name or None if cancelled.
+        Returns the selected category name or None if cancelled.
         """
         alert = NSAlert.alloc().init()
         alert.setMessageText_("Select Category")
@@ -291,10 +495,7 @@ class StopwatchApp(rumps.App):
     def get_text_input(self, title: str, message: str) -> str:
         """
         Prompt the user for text input.
-
-        :param title: The dialog title.
-        :param message: The dialog informative text.
-        :return: The entered text or None if cancelled.
+        Returns the entered text or None if cancelled.
         """
         alert = NSAlert.alloc().init()
         alert.setMessageText_(title)
@@ -309,7 +510,7 @@ class StopwatchApp(rumps.App):
         )
         alert.setAccessoryView_(textfield)
 
-        # Position the alert window the same way as select_category
+        # Position the alert window
         alert_window = alert.window()
         screen_frame = NSScreen.mainScreen().frame()
         alert_width = 600
@@ -335,8 +536,7 @@ class StopwatchApp(rumps.App):
     def get_date_time_input(self):
         """
         Prompt the user for a date/time and a time duration in minutes.
-
-        :return: A tuple (datetime object, float minutes) or (None, None) if invalid or cancelled.
+        :return: A tuple (datetime object, float minutes) or (None, None) if invalid/cancelled.
         """
         alert = NSAlert.alloc().init()
         alert.setMessageText_("Manual Entry")
@@ -403,6 +603,7 @@ class StopwatchApp(rumps.App):
                     rumps.alert(
                         "Invalid input. Please enter a positive number for time in minutes."
                     )
+                    return None, None
                 return date_value, time_minutes
             except ValueError:
                 rumps.alert("Invalid time in minutes. Please enter a numeric value.")
@@ -410,72 +611,11 @@ class StopwatchApp(rumps.App):
 
         return None, None
 
-    def delete_category(self, category_name, _) -> None:
-        """
-        Delete a category by name, after creating a backup of the data.json file.
-
-        :param category_name: The category to delete.
-        """
-        if category_name in self.data["categories"]:
-            # Create a backup of data.json before deletion
-            backup_dir = self.APP_SUPPORT_DIR / "backup"
-            backup_dir.mkdir(parents=True, exist_ok=True)
-            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            backup_filename = f"data_backup_{timestamp}_{category_name}.json"
-            backup_path = backup_dir / backup_filename
-            shutil.copy(self.data_path, backup_path)
-
-            # Proceed with deletion
-            del self.data["categories"][category_name]
-            self.save_data()
-            self.build_categories_menu()
-
-    def add_category(self, _) -> None:
-        """Prompt the user to add a new category."""
-        name = self.get_text_input("Add Category", "Enter category name:")
-        if name:
-            if name not in self.data["categories"]:
-                self.data["categories"][name] = []
-                self.save_data()
-                self.build_categories_menu()
-            else:
-                rumps.alert("Category already exists.")
-
-    def add_entry(self, _) -> None:
-        """Prompt the user to add a manual time entry."""
-        if not self.data["categories"]:
-            rumps.alert("No categories available. Please add a category first.")
-            return
-
-        category_name = self.select_category(list(self.data["categories"].keys()))
-        if not category_name:
-            return
-
-        if category_name not in self.data["categories"]:
-            rumps.alert(
-                f"Invalid category name: '{category_name}'. Please select a valid category."
-            )
-            return
-
-        date_value, time_minutes = self.get_date_time_input()
-        if date_value is None or time_minutes is None:
-            return
-
-        entry = {"date": date_value.isoformat(), "time": time_minutes}
-        self.data["categories"][category_name].append(entry)
-        self.save_data()
-
-    def format_hours_minutes_seconds(self, minutes: float) -> str:
-        """Format time in minutes as H:MM:SS."""
-        total_seconds = int(round(minutes * 60))
-        hrs = total_seconds // 3600
-        mins = (total_seconds % 3600) // 60
-        secs = total_seconds % 60
-        return f"{hrs}:{mins:02d}:{secs:02d}"
-
     def show_statistics(self, _) -> None:
-        """Show statistics with daily, weekly, and lifetime totals first,
-        then list each category's contribution under those totals."""
+        """
+        Show statistics with daily, weekly, and lifetime totals,
+        then each category's contribution.
+        """
         if not self.data["categories"]:
             rumps.alert("No categories available to show statistics.")
             return
@@ -486,7 +626,7 @@ class StopwatchApp(rumps.App):
         per_category_stats = {}
         overall_daily = 0
         overall_weekly = 0
-        overall_lifetime = 0  # Initialize overall lifetime total
+        overall_lifetime = 0
 
         for category, entries in self.data["categories"].items():
             daily = 0
