@@ -103,6 +103,8 @@ class StopwatchApp(rumps.App):
 
         # Make sure menu labels match the initial mode (Timer Mode = True)
         self.update_menu_labels()
+        # Make sure we start with correct enabled/disabled states
+        self.update_ui_states()
 
     def get_settings_path(self) -> Path:
         """Ensure the application support directory exists and return the settings file path."""
@@ -151,7 +153,7 @@ class StopwatchApp(rumps.App):
             # Update the default timer duration
             self.timer_duration = new_timer_val * 60
 
-            # If the user is currently in Timer Mode (not Stopwatch), 
+            # If the user is currently in Timer Mode (not Stopwatch),
             # update the 'time_remaining' immediately so the change takes effect:
             if self.is_timer_mode:
                 self.time_remaining = self.timer_duration
@@ -161,7 +163,6 @@ class StopwatchApp(rumps.App):
             rumps.alert(f"Default timer changed to {new_timer_val} minutes.")
         except ValueError:
             rumps.alert("Invalid input. Please enter a valid integer for minutes.")
-
 
     def load_data(self) -> None:
         """Load data from JSON file, creating it if it doesn't exist."""
@@ -242,6 +243,7 @@ class StopwatchApp(rumps.App):
 
                 # Re-enable toggling
                 self.enable_timer_mode_switch()
+                self.update_ui_states()
             else:
                 self.title = self.format_time(self.time_remaining)
         else:
@@ -399,6 +401,8 @@ class StopwatchApp(rumps.App):
             self.time_elapsed = 0
             self.title = "0:00:00"
 
+        self.update_ui_states()
+
     @rumps.clicked("Start/Resume Stopwatch")
     def start_resume(self, _):
         """
@@ -409,6 +413,7 @@ class StopwatchApp(rumps.App):
             self.running = True
             self.timer.start()
             self.disable_timer_mode_switch()
+        self.update_ui_states()
 
     @rumps.clicked("Pause Stopwatch")
     def pause(self, _):
@@ -420,6 +425,7 @@ class StopwatchApp(rumps.App):
             self.timer.stop()
             self.running = False
             self.enable_timer_mode_switch()
+        self.update_ui_states()
 
     @rumps.clicked("Reset and Save Stopwatch")
     def reset_and_save(self, _):
@@ -427,7 +433,7 @@ class StopwatchApp(rumps.App):
         Reset and Save for either Stopwatch or Timer:
         - Stopwatch: saves `self.time_elapsed`.
         - Timer: saves the elapsed portion = (timer_duration - time_remaining).
-        Then resets back to 0 for Stopwatch or 90 mins for Timer.
+        Then resets back to 0 for Stopwatch or self.timer_duration for Timer.
         """
         self.timer.stop()
         self.running = False
@@ -437,7 +443,7 @@ class StopwatchApp(rumps.App):
             # Timer
             elapsed_seconds = self.timer_duration - self.time_remaining
             self.save_timer_to_json(elapsed_seconds=elapsed_seconds)
-            # Reset to fresh 90
+            # Reset to fresh duration
             self.time_remaining = self.timer_duration
             self.title = "0:00:00"
         else:
@@ -446,6 +452,8 @@ class StopwatchApp(rumps.App):
             # Reset to 0
             self.time_elapsed = 0
             self.title = "0:00:00"
+
+        self.update_ui_states()
 
     # ----------------------------
     # Methods for saving sessions
@@ -715,6 +723,43 @@ class StopwatchApp(rumps.App):
             stats += f"  {category}: {self.format_hours_minutes_seconds(stats_dict['lifetime'])}\n"
 
         rumps.alert(stats)
+
+    # ---------------------------------------------
+    #  Helper to update enabled/disabled menu items
+    # ---------------------------------------------
+    def update_ui_states(self):
+        """
+        Enforce the requested behavior:
+        - Gray out (disable) Start/Resume if currently running.
+        - Gray out (disable) Pause if not currently running.
+        - Gray out “Change Timer Duration” if running or paused
+            (i.e. only enable if we are in a fresh state:
+            timer unstarted or stopwatch at 0).
+        """
+        start_resume_item = self.menu["Start/Resume Stopwatch"]
+        pause_item = self.menu["Pause Stopwatch"]
+        change_duration_item = self.menu["Settings"]["Change Timer Duration"]
+
+        # 1) Start/Resume is disabled if we are already running
+        if self.running:
+            start_resume_item._menuitem.setEnabled_(False)
+            pause_item._menuitem.setEnabled_(True)
+        else:
+            start_resume_item._menuitem.setEnabled_(True)
+            pause_item._menuitem.setEnabled_(False)
+
+        # 2) “Change Timer Duration” is only enabled if:
+        #    - Not running, AND
+        #    - We are “fresh” (Stopwatch = 0 or Timer = full duration).
+        fresh_state = (
+            (self.is_timer_mode and self.time_remaining == self.timer_duration)
+            or (not self.is_timer_mode and self.time_elapsed == 0)
+        )
+        if self.running or not fresh_state:
+            change_duration_item._menuitem.setEnabled_(False)
+        else:
+            change_duration_item._menuitem.setEnabled_(True)
+
 
 
 if __name__ == "__main__":
