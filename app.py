@@ -7,8 +7,8 @@ from pathlib import Path
 import shutil
 
 import rumps
-from AppKit import NSAlertFirstButtonReturn, NSApp, NSTextField, NSView
-from Cocoa import NSAlert, NSComboBox, NSPoint, NSRect, NSSize, NSScreen
+from AppKit import NSAlertFirstButtonReturn, NSApp, NSTextField, NSView, NSSlider
+from Cocoa import NSAlert, NSComboBox, NSPoint, NSRect, NSSize, NSScreen, NSObject
 
 DEBUGGING_MODE = True
 
@@ -433,25 +433,63 @@ class StopwatchApp(rumps.App):
 
     @rumps.clicked("Change Timer Duration")
     def change_timer_duration(self, _):
-        """Change the default timer duration."""
-        new_timer_str = self.get_text_input(
-            "Change Default Timer Duration",
-            "Enter the default timer value (in minutes):"
+        """Change the default timer duration using a slider."""
+        alert = NSAlert.alloc().init()
+        alert.setMessageText_("Change Timer Duration")
+        alert.setInformativeText_("Adjust the slider to set the timer duration in minutes:")
+        alert.addButtonWithTitle_("OK")
+        alert.addButtonWithTitle_("Cancel")
+
+        container_view = NSView.alloc().initWithFrame_(
+            NSRect(NSPoint(0, 0), NSSize(300, 60))
         )
-        if not new_timer_str:
-            return
 
-        try:
-            new_timer_val = int(new_timer_str)
-            if new_timer_val <= 0:
-                rumps.alert("Invalid number of minutes. Must be greater than 0.")
-                return
+        # Create slider
+        slider = NSSlider.alloc().initWithFrame_(
+            NSRect(NSPoint(0, 30), NSSize(300, 24))
+        )
+        slider.setMinValue_(30)  # Start from 30 minutes
+        slider.setMaxValue_(240)  # 4 hours max
+        slider.setIntValue_(self.timer_duration // 60)
+        
+        # Set up 5-minute increments
+        slider.setNumberOfTickMarks_(43)  # (240 - 30) minutes / 5 minutes = 42 tick marks + 1
+        slider.setTickMarkPosition_(1)  # Show tick marks below the slider
+        slider.setAllowsTickMarkValuesOnly_(True)  # Make it snap to tick marks
+        
+        # Create label to show current value
+        label = NSTextField.alloc().initWithFrame_(
+            NSRect(NSPoint(0, 0), NSSize(300, 24))
+        )
+        label.setStringValue_(f"Current duration: {self.timer_duration // 60} minutes")
+        label.setEditable_(False)
+        label.setBordered_(False)
+        label.setBackgroundColor_(None)
+        
+        # Create a delegate to handle slider changes
+        class SliderDelegate(NSObject):
+            def sliderChanged_(self, sender):
+                minutes = int(sender.intValue())
+                label.setStringValue_(f"Current duration: {minutes} minutes")
+        
+        delegate = SliderDelegate.alloc().init()
+        slider.setTarget_(delegate)
+        slider.setAction_("sliderChanged:")
 
+        container_view.addSubview_(slider)
+        container_view.addSubview_(label)
+        alert.setAccessoryView_(container_view)
+
+        self._position_alert_window(alert)
+        alert.window().makeKeyAndOrderFront_(None)
+        NSApp.activateIgnoringOtherApps_(True)
+
+        response = alert.runModal()
+        if response == NSAlertFirstButtonReturn:
+            new_timer_val = int(slider.intValue())
             self.timer_duration = new_timer_val * 60
             self.time_remaining = self.timer_duration
             self.save_settings()
-        except ValueError:
-            rumps.alert("Invalid input. Please enter a valid integer for minutes.")
 
     def get_text_input(self, title: str, message: str) -> str:
         """Prompt the user for text input."""
