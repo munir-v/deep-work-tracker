@@ -71,12 +71,12 @@ class StopwatchApp(rumps.App):
         settings_item.add(rumps.MenuItem("Reload Data File", callback=self.reload_data))
 
         self.menu = [
-            "Start/Resume Timer",
+            "Start Timer",
             "Pause Timer",
             "Reset and Save Timer",
             "Change Timer Duration",
             None,
-            "Start/Resume Stopwatch",
+            "Start Stopwatch",
             "Pause Stopwatch",
             "Reset and Save Stopwatch",
             None,
@@ -363,7 +363,7 @@ class StopwatchApp(rumps.App):
         """Update the enabled/disabled state of menu items."""
         # Timer controls
         timer_items = {
-            "Start/Resume Timer": not self.timer_running,
+            "Start Timer": not self.timer_running,
             "Pause Timer": self.timer_running,
             "Change Timer Duration": not self.timer_running
         }
@@ -372,13 +372,13 @@ class StopwatchApp(rumps.App):
 
         # Stopwatch controls
         stopwatch_items = {
-            "Start/Resume Stopwatch": not self.stopwatch_running,
+            "Start Stopwatch": not self.stopwatch_running,
             "Pause Stopwatch": self.stopwatch_running
         }
         for item, enabled in stopwatch_items.items():
             self.menu[item]._menuitem.setEnabled_(enabled)
 
-    @rumps.clicked("Start/Resume Timer")
+    @rumps.clicked("Start Timer")
     def start_resume_timer(self, _):
         """Start or resume the timer."""
         if not self.timer_running:
@@ -405,7 +405,7 @@ class StopwatchApp(rumps.App):
         self.title = "0:00:00"
         self.update_ui_states()
 
-    @rumps.clicked("Start/Resume Stopwatch")
+    @rumps.clicked("Start Stopwatch")
     def start_resume_stopwatch(self, _):
         """Start or resume the stopwatch."""
         if not self.stopwatch_running:
@@ -435,8 +435,8 @@ class StopwatchApp(rumps.App):
     def change_timer_duration(self, _):
         """Change the default timer duration using a slider."""
         alert = NSAlert.alloc().init()
-        alert.setMessageText_("Change Timer Duration")
-        alert.setInformativeText_("Adjust the slider to set the timer duration in minutes:")
+        alert.setMessageText_("")
+        alert.setInformativeText_("")
         alert.addButtonWithTitle_("OK")
         alert.addButtonWithTitle_("Cancel")
 
