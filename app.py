@@ -30,12 +30,16 @@ class StopwatchApp(rumps.App):
         Path.home() / "Library" / "Application Support" / "Deep Work Timer"
     )
     SETTINGS_FILENAME = "settings.json"
-    DATA_FILENAME = "data.json"
-    if DEBUGGING_MODE:
-        DATA_FILENAME = "data_debug.json"
+    DATA_FILENAME = "data_debug.json" if DEBUGGING_MODE else "data.json"
 
     def __init__(self):
         super().__init__("0:00:00", quit_button="Quit")
+
+        # Initialize paths and data
+        self.settings_path = self.get_settings_path()
+        self.data_path = self.get_data_path()
+        self.data = {}
+        self.start_at_startup = False
 
         # Timer settings
         self.timer_duration = 90 * 60  # 90 minutes in seconds
@@ -48,30 +52,24 @@ class StopwatchApp(rumps.App):
         self.stopwatch_running = False
         self.stopwatch = rumps.Timer(self.update_stopwatch, 1)
 
-        self.start_at_startup = False
-
-        self.settings_path = self.get_settings_path()
-        self.data_path = self.get_data_path()
-        self.data = {}
-
+        # Load saved data
         self.load_settings()
         self.load_data()
 
-        # Settings submenu
+        # Build menu
+        self.build_menu()
+        self.build_categories_menu()
+        self.update_ui_states()
+
+    def build_menu(self):
+        """Build the main menu structure."""
         settings_item = rumps.MenuItem("Settings")
-        settings_item.add(
-            rumps.MenuItem("Start at startup", callback=self.toggle_startup)
-        )
+        settings_item.add(rumps.MenuItem("Start at startup", callback=self.toggle_startup))
         settings_item.add(rumps.MenuItem("Add Category", callback=self.add_category))
-        settings_item.add(
-            rumps.MenuItem("Open Data File", callback=self.open_data_location)
-        )
-        settings_item.add(
-            rumps.MenuItem("Open Support Directory", callback=self.open_app_support_dir)
-        )
+        settings_item.add(rumps.MenuItem("Open Data File", callback=self.open_data_location))
+        settings_item.add(rumps.MenuItem("Open Support Directory", callback=self.open_app_support_dir))
         settings_item.add(rumps.MenuItem("Reload Data File", callback=self.reload_data))
 
-        # Build the main menu
         self.menu = [
             "Start/Resume Timer",
             "Pause Timer",
@@ -90,8 +88,6 @@ class StopwatchApp(rumps.App):
         ]
 
         self.menu["Settings"]["Start at startup"].state = self.start_at_startup
-        self.build_categories_menu()
-        self.update_ui_states()
 
     def get_settings_path(self) -> Path:
         """Ensure the application support directory exists and return the settings file path."""
@@ -155,17 +151,12 @@ class StopwatchApp(rumps.App):
             self.menu.insert_after("Statistics", rumps.MenuItem("Categories"))
 
         categories_item = self.menu["Categories"]
-        # Clear any old entries
         for key in list(categories_item.keys()):
             del categories_item[key]
 
-        # Add each known category
         for cat in self.data["categories"].keys():
             cat_item = rumps.MenuItem(cat)
-            delete_item = rumps.MenuItem(
-                "Delete Category", callback=partial(self.delete_category, cat)
-            )
-            cat_item.add(delete_item)
+            cat_item.add(rumps.MenuItem("Delete Category", callback=partial(self.delete_category, cat)))
             categories_item.add(cat_item)
 
     def open_data_location(self, _) -> None:
@@ -196,21 +187,26 @@ class StopwatchApp(rumps.App):
         self.title = self.format_time(self.time_elapsed)
 
     def format_time(self, seconds: int) -> str:
-        """Format integer seconds as H:MM:SS (for menubar display)."""
+        """Format integer seconds as H:MM:SS."""
         hrs = seconds // 3600
         mins = (seconds % 3600) // 60
         secs = seconds % 60
         return f"{hrs}:{mins:02d}:{secs:02d}"
 
     def format_time_minutes(self, minutes: float) -> str:
-        """Format minutes as H:MM.mm (used in statistics or saving functions)."""
+        """Format minutes as H:MM.mm."""
         hrs = int(minutes) // 60
         mins = minutes - (hrs * 60)
         return f"{hrs}:{mins:05.2f}"
 
-    # ------------------------------------------------------------------
-    # Preserve all original functions below without removing any of them
-    # ------------------------------------------------------------------
+    def format_hours_minutes_seconds(self, minutes: float) -> str:
+        """Format time in minutes as H:MM:SS."""
+        total_seconds = int(round(minutes * 60))
+        hrs = total_seconds // 3600
+        mins = (total_seconds % 3600) // 60
+        secs = total_seconds % 60
+        return f"{hrs}:{mins:02d}:{secs:02d}"
+
     def toggle_startup(self, sender) -> None:
         """Toggle whether the app starts at login."""
         sender.state = not sender.state
@@ -243,19 +239,14 @@ class StopwatchApp(rumps.App):
         os.system(f"osascript -e '{script}'")
 
     def delete_category(self, category_name, _) -> None:
-        """
-        Delete a category by name, after creating a backup of the data.json file.
-        """
+        """Delete a category by name, after creating a backup."""
         if category_name in self.data["categories"]:
-            # Create a backup of data.json before deletion
             backup_dir = self.APP_SUPPORT_DIR / "backup"
             backup_dir.mkdir(parents=True, exist_ok=True)
             timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            backup_filename = f"data_backup_{timestamp}_{category_name}.json"
-            backup_path = backup_dir / backup_filename
+            backup_path = backup_dir / f"data_backup_{timestamp}_{category_name}.json"
             shutil.copy(self.data_path, backup_path)
 
-            # Proceed with deletion
             del self.data["categories"][category_name]
             self.save_data()
             self.build_categories_menu()
@@ -263,13 +254,12 @@ class StopwatchApp(rumps.App):
     def add_category(self, _) -> None:
         """Prompt the user to add a new category."""
         name = self.get_text_input("Add Category", "Enter category name:")
-        if name:
-            if name not in self.data["categories"]:
-                self.data["categories"][name] = []
-                self.save_data()
-                self.build_categories_menu()
-            else:
-                rumps.alert("Category already exists.")
+        if name and name not in self.data["categories"]:
+            self.data["categories"][name] = []
+            self.save_data()
+            self.build_categories_menu()
+        elif name:
+            rumps.alert("Category already exists.")
 
     def add_entry(self, _) -> None:
         """Prompt the user to add a manual time entry."""
@@ -278,13 +268,7 @@ class StopwatchApp(rumps.App):
             return
 
         category_name = self.select_category(list(self.data["categories"].keys()))
-        if not category_name:
-            return
-
-        if category_name not in self.data["categories"]:
-            rumps.alert(
-                f"Invalid category name: '{category_name}'. Please select a valid category."
-            )
+        if not category_name or category_name not in self.data["categories"]:
             return
 
         date_value, time_minutes = self.get_date_time_input()
@@ -295,36 +279,104 @@ class StopwatchApp(rumps.App):
         self.data["categories"][category_name].append(entry)
         self.save_data()
 
-    def format_hours_minutes_seconds(self, minutes: float) -> str:
-        """Format time in minutes as H:MM:SS. Used in show_statistics()."""
-        total_seconds = int(round(minutes * 60))
-        hrs = total_seconds // 3600
-        mins = (total_seconds % 3600) // 60
-        secs = total_seconds % 60
-        return f"{hrs}:{mins:02d}:{secs:02d}"
+    def save_stopwatch_to_json(self):
+        """Save stopwatch time to selected category."""
+        if not self.data["categories"]:
+            rumps.alert("No categories available. Please add a category first.")
+            return
 
-    # ------------------------------------------------------------------
-    # New or updated methods for Timer/Stopwatch combined usage
-    # ------------------------------------------------------------------
-    def update_menu_labels(self):
-        """Update the three main items' text based on Timer vs. Stopwatch mode."""
-        if self.timer_running:
-            self.menu["Start/Resume Timer"].title = "Start/Resume Timer"
-            self.menu["Pause Timer"].title = "Pause Timer"
-            self.menu["Reset and Save Timer"].title = "Reset and Save Timer"
-        else:
-            self.menu["Start/Resume Timer"].title = "Start/Resume Timer"
-            self.menu["Pause Timer"].title = "Pause Timer"
-            self.menu["Reset and Save Timer"].title = "Reset and Save Timer"
+        category_name = self.select_category(list(self.data["categories"].keys()))
+        if not category_name:
+            return
 
-        if self.stopwatch_running:
-            self.menu["Start/Resume Stopwatch"].title = "Start/Resume Stopwatch"
-            self.menu["Pause Stopwatch"].title = "Pause Stopwatch"
-            self.menu["Reset and Save Stopwatch"].title = "Reset and Save Stopwatch"
-        else:
-            self.menu["Start/Resume Stopwatch"].title = "Start/Resume Stopwatch"
-            self.menu["Pause Stopwatch"].title = "Pause Stopwatch"
-            self.menu["Reset and Save Stopwatch"].title = "Reset and Save Stopwatch"
+        time_value = round(self.time_elapsed / 60, 2)
+        entry = {"date": datetime.now().isoformat(), "time": time_value}
+        self.data["categories"][category_name].append(entry)
+        self.save_data()
+
+    def save_timer_to_json(self, elapsed_seconds=None):
+        """Save timer time to selected category."""
+        if elapsed_seconds is None:
+            elapsed_seconds = self.timer_duration - self.time_remaining
+
+        if not self.data["categories"]:
+            rumps.alert("No categories available. Please add a category first.")
+            return
+
+        category_name = self.select_category(list(self.data["categories"].keys()))
+        if not category_name:
+            return
+
+        time_value = round(elapsed_seconds / 60, 2)
+        entry = {"date": datetime.now().isoformat(), "time": time_value}
+        self.data["categories"][category_name].append(entry)
+        self.save_data()
+
+    def show_statistics(self, _) -> None:
+        """Show statistics with daily, weekly, and lifetime totals."""
+        if not self.data["categories"]:
+            rumps.alert("No categories available to show statistics.")
+            return
+
+        today = datetime.now().date()
+        week_ago = today - timedelta(days=7)
+
+        per_category_stats = {}
+        overall_daily = overall_weekly = overall_lifetime = 0
+
+        for category, entries in self.data["categories"].items():
+            daily = weekly = lifetime = 0
+
+            for entry in entries:
+                try:
+                    entry_date = datetime.fromisoformat(entry["date"]).date()
+                    time_spent = entry["time"]
+                    lifetime += time_spent
+
+                    if entry_date == today:
+                        daily += time_spent
+                    if week_ago <= entry_date <= today:
+                        weekly += time_spent
+                except ValueError:
+                    continue
+
+            per_category_stats[category] = {
+                "daily": daily,
+                "weekly": weekly,
+                "lifetime": lifetime,
+            }
+
+            overall_daily += daily
+            overall_weekly += weekly
+            overall_lifetime += lifetime
+
+        stats = "Deep Work Statistics:\n\n"
+        for period, total in [("Daily", overall_daily), ("Weekly", overall_weekly), ("Lifetime", overall_lifetime)]:
+            stats += f"{period} Total: {self.format_hours_minutes_seconds(total)}\n"
+            for category, stats_dict in per_category_stats.items():
+                stats += f"  {category}: {self.format_hours_minutes_seconds(stats_dict[period.lower()])}\n"
+            stats += "\n"
+
+        rumps.alert(stats)
+
+    def update_ui_states(self):
+        """Update the enabled/disabled state of menu items."""
+        # Timer controls
+        timer_items = {
+            "Start/Resume Timer": not self.timer_running,
+            "Pause Timer": self.timer_running,
+            "Change Timer Duration": not self.timer_running
+        }
+        for item, enabled in timer_items.items():
+            self.menu[item]._menuitem.setEnabled_(enabled)
+
+        # Stopwatch controls
+        stopwatch_items = {
+            "Start/Resume Stopwatch": not self.stopwatch_running,
+            "Pause Stopwatch": self.stopwatch_running
+        }
+        for item, enabled in stopwatch_items.items():
+            self.menu[item]._menuitem.setEnabled_(enabled)
 
     @rumps.clicked("Start/Resume Timer")
     def start_resume_timer(self, _):
@@ -379,121 +431,42 @@ class StopwatchApp(rumps.App):
         self.title = "0:00:00"
         self.update_ui_states()
 
-    # ----------------------------
-    # Methods for saving sessions
-    # ----------------------------
-    def save_stopwatch_to_json(self):
-        """Prompt category selection and save `time_elapsed` (in minutes)."""
-        if not self.data["categories"]:
-            rumps.alert("No categories available. Please add a category first.")
-            return
-
-        category_name = self.select_category(list(self.data["categories"].keys()))
-        if not category_name:
-            return
-
-        time_value = round(self.time_elapsed / 60, 2)
-        entry = {"date": datetime.now().isoformat(), "time": time_value}
-        self.data["categories"][category_name].append(entry)
-        self.save_data()
-
-    def save_timer_to_json(self, elapsed_seconds=None):
-        """
-        Prompt category selection and save the 'elapsed_seconds' portion.
-        If elapsed_seconds is None, compute from (timer_duration - time_remaining).
-        """
-        if elapsed_seconds is None:
-            elapsed_seconds = self.timer_duration - self.time_remaining
-
-        if not self.data["categories"]:
-            rumps.alert("No categories available. Please add a category first.")
-            return
-
-        category_name = self.select_category(list(self.data["categories"].keys()))
-        if not category_name:
-            return
-
-        time_value = round(elapsed_seconds / 60, 2)
-        entry = {"date": datetime.now().isoformat(), "time": time_value}
-        self.data["categories"][category_name].append(entry)
-        self.save_data()
-
-    # --------------------------------
-    # Existing UI/dialog code remains
-    # --------------------------------
-    def select_category(self, categories: list) -> str:
-        """
-        Display a dialog with a combo box to select a category.
-        Returns the selected category name or None if cancelled.
-        """
-        alert = NSAlert.alloc().init()
-        alert.setMessageText_("Select Category")
-        alert.addButtonWithTitle_("OK")
-        alert.addButtonWithTitle_("Cancel")
-
-        view_width = 300
-        view_height = 24
-        combobox = NSComboBox.alloc().initWithFrame_(
-            NSRect(NSPoint(0, 0), NSSize(view_width, view_height))
+    @rumps.clicked("Change Timer Duration")
+    def change_timer_duration(self, _):
+        """Change the default timer duration."""
+        new_timer_str = self.get_text_input(
+            "Change Default Timer Duration",
+            "Enter the default timer value (in minutes):"
         )
-        combobox.addItemsWithObjectValues_(categories)
-        combobox.selectItemAtIndex_(0)
-        alert.setAccessoryView_(combobox)
+        if not new_timer_str:
+            return
 
-        alert_window = alert.window()
-        screen_frame = NSScreen.mainScreen().frame()
-        alert_width = 600
-        alert_height = 200
+        try:
+            new_timer_val = int(new_timer_str)
+            if new_timer_val <= 0:
+                rumps.alert("Invalid number of minutes. Must be greater than 0.")
+                return
 
-        alert_x = screen_frame.size.width - alert_width
-        alert_y = screen_frame.size.height - alert_height
-        alert_window.setFrame_display_animate_(
-            NSRect(NSPoint(alert_x, alert_y), NSSize(alert_width, alert_height)),
-            True,
-            False,
-        )
-
-        alert.window().makeKeyAndOrderFront_(None)
-        NSApp.activateIgnoringOtherApps_(True)
-        alert.window().setInitialFirstResponder_(combobox)
-        response = alert.runModal()
-
-        if response == NSAlertFirstButtonReturn:
-            return combobox.stringValue()
-        return None
+            self.timer_duration = new_timer_val * 60
+            self.time_remaining = self.timer_duration
+            self.save_settings()
+        except ValueError:
+            rumps.alert("Invalid input. Please enter a valid integer for minutes.")
 
     def get_text_input(self, title: str, message: str) -> str:
-        """
-        Prompt the user for text input.
-        Returns the entered text or None if cancelled.
-        """
+        """Prompt the user for text input."""
         alert = NSAlert.alloc().init()
         alert.setMessageText_(title)
         alert.setInformativeText_(message)
         alert.addButtonWithTitle_("OK")
         alert.addButtonWithTitle_("Cancel")
 
-        width = 300
-        height = 24
         textfield = NSTextField.alloc().initWithFrame_(
-            NSRect(NSPoint(0, 0), NSSize(width, height))
+            NSRect(NSPoint(0, 0), NSSize(300, 24))
         )
         alert.setAccessoryView_(textfield)
 
-        # Position the alert window
-        alert_window = alert.window()
-        screen_frame = NSScreen.mainScreen().frame()
-        alert_width = 600
-        alert_height = 200
-
-        alert_x = screen_frame.size.width - alert_width
-        alert_y = screen_frame.size.height - alert_height
-        alert_window.setFrame_display_animate_(
-            NSRect(NSPoint(alert_x, alert_y), NSSize(alert_width, alert_height)),
-            True,
-            False,
-        )
-
+        self._position_alert_window(alert)
         alert.window().makeKeyAndOrderFront_(None)
         NSApp.activateIgnoringOtherApps_(True)
         alert.window().setInitialFirstResponder_(textfield)
@@ -504,52 +477,32 @@ class StopwatchApp(rumps.App):
         return None
 
     def get_date_time_input(self):
-        """
-        Prompt the user for a date/time and a time duration in minutes.
-        :return: A tuple (datetime object, float minutes) or (None, None) if invalid/cancelled.
-        """
+        """Prompt the user for a date/time and a time duration in minutes."""
         alert = NSAlert.alloc().init()
         alert.setMessageText_("Manual Entry")
-        alert.setInformativeText_(
-            "Enter a date/time (MM/DD/YY HH:MM) and time in minutes:"
-        )
+        alert.setInformativeText_("Enter a date/time (MM/DD/YY HH:MM) and time in minutes:")
         alert.addButtonWithTitle_("OK")
         alert.addButtonWithTitle_("Cancel")
 
-        container_width = 300
-        container_height = 60
-        current_dt_str = datetime.now().strftime("%m/%d/%y %H:%M")
+        container_view = NSView.alloc().initWithFrame_(
+            NSRect(NSPoint(0, 0), NSSize(300, 60))
+        )
 
         datetime_field = NSTextField.alloc().initWithFrame_(
-            NSRect(NSPoint(0, 30), NSSize(container_width, 24))
+            NSRect(NSPoint(0, 30), NSSize(300, 24))
         )
-        datetime_field.setStringValue_(current_dt_str)
+        datetime_field.setStringValue_(datetime.now().strftime("%m/%d/%y %H:%M"))
 
         time_field = NSTextField.alloc().initWithFrame_(
-            NSRect(NSPoint(0, 0), NSSize(container_width, 24))
+            NSRect(NSPoint(0, 0), NSSize(300, 24))
         )
         time_field.setPlaceholderString_("Time in minutes")
 
-        container_view = NSView.alloc().initWithFrame_(
-            NSRect(NSPoint(0, 0), NSSize(container_width, container_height))
-        )
         container_view.addSubview_(time_field)
         container_view.addSubview_(datetime_field)
         alert.setAccessoryView_(container_view)
 
-        alert_window = alert.window()
-        screen_frame = NSScreen.mainScreen().frame()
-        alert_width = 600
-        alert_height = 200
-
-        alert_x = screen_frame.size.width - alert_width
-        alert_y = screen_frame.size.height - alert_height
-        alert_window.setFrame_display_animate_(
-            NSRect(NSPoint(alert_x, alert_y), NSSize(alert_width, alert_height)),
-            True,
-            False,
-        )
-
+        self._position_alert_window(alert)
         alert.window().makeKeyAndOrderFront_(None)
         NSApp.activateIgnoringOtherApps_(True)
         alert.window().setInitialFirstResponder_(datetime_field)
@@ -562,17 +515,13 @@ class StopwatchApp(rumps.App):
             try:
                 date_value = datetime.strptime(datetime_str, "%m/%d/%y %H:%M")
             except ValueError:
-                rumps.alert(
-                    "Invalid date/time format. Please enter in MM/DD/YY HH:MM format."
-                )
+                rumps.alert("Invalid date/time format. Please enter in MM/DD/YY HH:MM format.")
                 return None, None
 
             try:
                 time_minutes = float(time_str)
                 if time_minutes <= 0:
-                    rumps.alert(
-                        "Invalid input. Please enter a positive number for time in minutes."
-                    )
+                    rumps.alert("Invalid input. Please enter a positive number for time in minutes.")
                     return None, None
                 return date_value, time_minutes
             except ValueError:
@@ -581,127 +530,44 @@ class StopwatchApp(rumps.App):
 
         return None, None
 
-    def show_statistics(self, _) -> None:
-        """
-        Show statistics with daily, weekly, and lifetime totals,
-        then each category's contribution.
-        """
-        if not self.data["categories"]:
-            rumps.alert("No categories available to show statistics.")
-            return
+    def select_category(self, categories: list) -> str:
+        """Display a dialog with a combo box to select a category."""
+        alert = NSAlert.alloc().init()
+        alert.setMessageText_("Select Category")
+        alert.addButtonWithTitle_("OK")
+        alert.addButtonWithTitle_("Cancel")
 
-        today = datetime.now().date()
-        week_ago = today - timedelta(days=7)
-
-        per_category_stats = {}
-        overall_daily = 0
-        overall_weekly = 0
-        overall_lifetime = 0
-
-        for category, entries in self.data["categories"].items():
-            daily = 0
-            weekly = 0
-            lifetime = 0
-
-            for entry in entries:
-                try:
-                    entry_date = datetime.fromisoformat(entry["date"]).date()
-                except ValueError:
-                    continue
-
-                time_spent = entry["time"]
-                lifetime += time_spent
-
-                if entry_date == today:
-                    daily += time_spent
-
-                if week_ago <= entry_date <= today:
-                    weekly += time_spent
-
-            per_category_stats[category] = {
-                "daily": daily,
-                "weekly": weekly,
-                "lifetime": lifetime,
-            }
-
-            overall_daily += daily
-            overall_weekly += weekly
-            overall_lifetime += lifetime
-
-        stats = "Deep Work Statistics:\n\n"
-
-        stats += f"Daily Total: {self.format_hours_minutes_seconds(overall_daily)}\n"
-        for category, stats_dict in per_category_stats.items():
-            stats += f"  {category}: {self.format_hours_minutes_seconds(stats_dict['daily'])}\n"
-        stats += "\n"
-
-        stats += f"Weekly Total: {self.format_hours_minutes_seconds(overall_weekly)}\n"
-        for category, stats_dict in per_category_stats.items():
-            stats += f"  {category}: {self.format_hours_minutes_seconds(stats_dict['weekly'])}\n"
-        stats += "\n"
-
-        stats += (
-            f"Lifetime Total: {self.format_hours_minutes_seconds(overall_lifetime)}\n"
+        combobox = NSComboBox.alloc().initWithFrame_(
+            NSRect(NSPoint(0, 0), NSSize(300, 24))
         )
-        for category, stats_dict in per_category_stats.items():
-            stats += f"  {category}: {self.format_hours_minutes_seconds(stats_dict['lifetime'])}\n"
+        combobox.addItemsWithObjectValues_(categories)
+        combobox.selectItemAtIndex_(0)
+        alert.setAccessoryView_(combobox)
 
-        rumps.alert(stats)
+        self._position_alert_window(alert)
+        alert.window().makeKeyAndOrderFront_(None)
+        NSApp.activateIgnoringOtherApps_(True)
+        alert.window().setInitialFirstResponder_(combobox)
 
-    # ---------------------------------------------
-    #  Helper to update enabled/disabled menu items
-    # ---------------------------------------------
-    def update_ui_states(self):
-        """
-        Update the enabled/disabled state of menu items based on current state.
-        """
-        # Timer controls
-        start_resume_timer = self.menu["Start/Resume Timer"]
-        pause_timer = self.menu["Pause Timer"]
-        change_duration = self.menu["Change Timer Duration"]
+        response = alert.runModal()
+        if response == NSAlertFirstButtonReturn:
+            return combobox.stringValue()
+        return None
 
-        if self.timer_running:
-            start_resume_timer._menuitem.setEnabled_(False)
-            pause_timer._menuitem.setEnabled_(True)
-            change_duration._menuitem.setEnabled_(False)
-        else:
-            start_resume_timer._menuitem.setEnabled_(True)
-            pause_timer._menuitem.setEnabled_(False)
-            change_duration._menuitem.setEnabled_(True)
+    def _position_alert_window(self, alert):
+        """Position the alert window in the top-right corner of the screen."""
+        alert_window = alert.window()
+        screen_frame = NSScreen.mainScreen().frame()
+        alert_width = 600
+        alert_height = 200
 
-        # Stopwatch controls
-        start_resume_stopwatch = self.menu["Start/Resume Stopwatch"]
-        pause_stopwatch = self.menu["Pause Stopwatch"]
-
-        if self.stopwatch_running:
-            start_resume_stopwatch._menuitem.setEnabled_(False)
-            pause_stopwatch._menuitem.setEnabled_(True)
-        else:
-            start_resume_stopwatch._menuitem.setEnabled_(True)
-            pause_stopwatch._menuitem.setEnabled_(False)
-
-    @rumps.clicked("Change Timer Duration")
-    def change_timer_duration(self, _):
-        """Change the default timer duration."""
-        new_timer_str = self.get_text_input(
-            "Change Default Timer Duration",
-            "Enter the default timer value (in minutes):"
+        alert_x = screen_frame.size.width - alert_width
+        alert_y = screen_frame.size.height - alert_height
+        alert_window.setFrame_display_animate_(
+            NSRect(NSPoint(alert_x, alert_y), NSSize(alert_width, alert_height)),
+            True,
+            False,
         )
-        if not new_timer_str:
-            return  # User cancelled
-
-        try:
-            new_timer_val = int(new_timer_str)
-            if new_timer_val <= 0:
-                rumps.alert("Invalid number of minutes. Must be greater than 0.")
-                return
-
-            # Update the default timer duration
-            self.timer_duration = new_timer_val * 60
-            self.time_remaining = self.timer_duration
-            self.save_settings()
-        except ValueError:
-            rumps.alert("Invalid input. Please enter a valid integer for minutes.")
 
 
 if __name__ == "__main__":
