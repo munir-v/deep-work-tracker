@@ -45,12 +45,25 @@ class StopwatchApp(rumps.App):
         self.timer_duration = 90 * 60  # 90 minutes in seconds
         self.time_remaining = self.timer_duration
         self.timer_running = False
+        self.timer_paused = False
         self.timer = rumps.Timer(self.update_timer, 1)
 
         # Stopwatch settings
         self.time_elapsed = 0
         self.stopwatch_running = False
+        self.stopwatch_paused = False
         self.stopwatch = rumps.Timer(self.update_stopwatch, 1)
+
+        # Store original callbacks
+        self.original_callbacks = {
+            "Start Timer": self.start_resume_timer,
+            "Pause Timer": self.pause_timer,
+            "Reset and Save Timer": self.reset_and_save_timer,
+            "Change Timer Duration": self.change_timer_duration,
+            "Start Stopwatch": self.start_resume_stopwatch,
+            "Pause Stopwatch": self.pause_stopwatch,
+            "Reset and Save Stopwatch": self.reset_and_save_stopwatch
+        }
 
         # Load saved data
         self.load_settings()
@@ -71,14 +84,14 @@ class StopwatchApp(rumps.App):
         settings_item.add(rumps.MenuItem("Reload Data File", callback=self.reload_data))
 
         self.menu = [
-            "Start Timer",
-            "Pause Timer",
-            "Reset and Save Timer",
-            "Change Timer Duration",
+            rumps.MenuItem("Start Timer", callback=self.start_resume_timer),
+            rumps.MenuItem("Pause Timer", callback=self.pause_timer),
+            rumps.MenuItem("Reset and Save Timer", callback=self.reset_and_save_timer),
+            rumps.MenuItem("Change Timer Duration", callback=self.change_timer_duration),
             None,
-            "Start Stopwatch",
-            "Pause Stopwatch",
-            "Reset and Save Stopwatch",
+            rumps.MenuItem("Start Stopwatch", callback=self.start_resume_stopwatch),
+            rumps.MenuItem("Pause Stopwatch", callback=self.pause_stopwatch),
+            rumps.MenuItem("Reset and Save Stopwatch", callback=self.reset_and_save_stopwatch),
             None,
             rumps.MenuItem("Manual Entry", callback=self.add_entry),
             rumps.MenuItem("Statistics", callback=self.show_statistics),
@@ -174,6 +187,7 @@ class StopwatchApp(rumps.App):
             self.time_remaining = 0
             self.timer.stop()
             self.timer_running = False
+            self.timer_paused = False
             self.title = "0:00:00"
             self.save_timer_to_json()
             self.time_remaining = self.timer_duration
@@ -361,28 +375,31 @@ class StopwatchApp(rumps.App):
 
     def update_ui_states(self):
         """Update the enabled/disabled state of menu items."""
-        # Timer controls
+        # Timer controls - disabled if stopwatch is running or paused
         timer_items = {
-            "Start Timer": not self.timer_running,
-            "Pause Timer": self.timer_running,
-            "Change Timer Duration": not self.timer_running
+            "Start Timer": not self.timer_running and not self.stopwatch_running and self.time_elapsed == 0,
+            "Pause Timer": self.timer_running and not self.stopwatch_running,
+            "Change Timer Duration": not self.timer_running and not self.stopwatch_running and self.time_elapsed == 0,
+            "Reset and Save Timer": (self.timer_running or self.timer_paused or self.time_remaining < self.timer_duration) and not self.stopwatch_running
         }
         for item, enabled in timer_items.items():
-            self.menu[item]._menuitem.setEnabled_(enabled)
+            self.menu[item].set_callback(self.original_callbacks[item] if enabled else None)
 
-        # Stopwatch controls
+        # Stopwatch controls - disabled if timer is running or paused
         stopwatch_items = {
-            "Start Stopwatch": not self.stopwatch_running,
-            "Pause Stopwatch": self.stopwatch_running
+            "Start Stopwatch": not self.stopwatch_running and not self.timer_running and self.time_remaining == self.timer_duration,
+            "Pause Stopwatch": self.stopwatch_running and not self.timer_running,
+            "Reset and Save Stopwatch": (self.stopwatch_running or self.stopwatch_paused or self.time_elapsed > 0) and not self.timer_running
         }
         for item, enabled in stopwatch_items.items():
-            self.menu[item]._menuitem.setEnabled_(enabled)
+            self.menu[item].set_callback(self.original_callbacks[item] if enabled else None)
 
     @rumps.clicked("Start Timer")
     def start_resume_timer(self, _):
         """Start or resume the timer."""
         if not self.timer_running:
             self.timer_running = True
+            self.timer_paused = False
             self.timer.start()
         self.update_ui_states()
 
@@ -392,6 +409,7 @@ class StopwatchApp(rumps.App):
         if self.timer_running:
             self.timer.stop()
             self.timer_running = False
+            self.timer_paused = True
         self.update_ui_states()
 
     @rumps.clicked("Reset and Save Timer")
@@ -399,6 +417,7 @@ class StopwatchApp(rumps.App):
         """Reset and save the timer."""
         self.timer.stop()
         self.timer_running = False
+        self.timer_paused = False
         elapsed_seconds = self.timer_duration - self.time_remaining
         self.save_timer_to_json(elapsed_seconds=elapsed_seconds)
         self.time_remaining = self.timer_duration
@@ -410,6 +429,7 @@ class StopwatchApp(rumps.App):
         """Start or resume the stopwatch."""
         if not self.stopwatch_running:
             self.stopwatch_running = True
+            self.stopwatch_paused = False
             self.stopwatch.start()
         self.update_ui_states()
 
@@ -419,6 +439,7 @@ class StopwatchApp(rumps.App):
         if self.stopwatch_running:
             self.stopwatch.stop()
             self.stopwatch_running = False
+            self.stopwatch_paused = True
         self.update_ui_states()
 
     @rumps.clicked("Reset and Save Stopwatch")
@@ -426,6 +447,7 @@ class StopwatchApp(rumps.App):
         """Reset and save the stopwatch."""
         self.stopwatch.stop()
         self.stopwatch_running = False
+        self.stopwatch_paused = False
         self.save_stopwatch_to_json()
         self.time_elapsed = 0
         self.title = "0:00:00"
