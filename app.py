@@ -60,7 +60,7 @@ class StopwatchApp(rumps.App):
         self.start_at_startup = False
 
         # Timer settings
-        self.timer_duration = 90 * 60  # 90 minutes in seconds
+        self.timer_duration = 120 * 60  # 120 minutes in seconds
         self.time_remaining = self.timer_duration
         self.timer_running = False
         self.timer_paused = False
@@ -135,7 +135,7 @@ class StopwatchApp(rumps.App):
             with open(self.settings_path, "r", encoding="utf-8") as f:
                 settings = json.load(f)
                 self.start_at_startup = settings.get("start_at_startup", False)
-                self.timer_duration = settings.get("timer_minutes", 90) * 60
+                self.timer_duration = settings.get("timer_minutes", 120) * 60
         except FileNotFoundError:
             pass
 
