@@ -347,8 +347,8 @@ class StopwatchApp(rumps.App):
             elapsed_seconds = self.timer_duration - self.time_remaining
 
         # Validate that elapsed time is not negative
-        if elapsed_seconds <= 0:
-            rumps.alert("Cannot save zero or negative time. Please start the timer first.")
+        if elapsed_seconds < 0:
+            rumps.alert("Cannot save negative time. Please start the timer first.")
             return
 
         if not self.data["categories"]:
