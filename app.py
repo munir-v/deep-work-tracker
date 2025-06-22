@@ -13,6 +13,24 @@ from Cocoa import NSAlert, NSComboBox, NSPoint, NSRect, NSSize, NSScreen, NSObje
 DEBUGGING_MODE = True
 
 
+class SliderDelegate(NSObject):
+    """Delegate class for handling slider changes in timer duration dialog."""
+    def init(self):
+        self = super().init()
+        if self:
+            self.label = None
+        return self
+    
+    def setLabel_(self, label):
+        """Set the label that should be updated when slider changes."""
+        self.label = label
+    
+    def sliderChanged_(self, sender):
+        minutes = int(sender.intValue())
+        if self.label:
+            self.label.setStringValue_(f"Current duration: {minutes} minutes")
+
+
 class StopwatchApp(rumps.App):
     """
     A menu bar application that tracks time spent on various categories using both timer and stopwatch functionality.
@@ -520,12 +538,10 @@ class StopwatchApp(rumps.App):
         label.setBackgroundColor_(None)
         
         # Create a delegate to handle slider changes
-        class SliderDelegate(NSObject):
-            def sliderChanged_(self, sender):
-                minutes = int(sender.intValue())
-                label.setStringValue_(f"Current duration: {minutes} minutes")
-        
         delegate = SliderDelegate.alloc().init()
+        # Store delegate as instance variable to prevent garbage collection
+        self._slider_delegate = delegate
+        delegate.setLabel_(label)
         slider.setTarget_(delegate)
         slider.setAction_("sliderChanged:")
 
@@ -543,6 +559,9 @@ class StopwatchApp(rumps.App):
             self.timer_duration = new_timer_val * 60
             self.time_remaining = self.timer_duration
             self.save_settings()
+        
+        # Clean up the delegate reference
+        self._slider_delegate = None
 
     def get_text_input(self, title: str, message: str) -> str:
         """Prompt the user for text input."""
