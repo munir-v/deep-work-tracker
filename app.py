@@ -90,7 +90,10 @@ class StopwatchApp(rumps.App):
         # Build menu
         self.build_menu()
         self.build_categories_menu()
-        self.update_ui_states()
+
+        # defer the initial menu update until after rumps finishes launching
+        self._deferred_init = rumps.Timer(self._late_init, 0)
+        self._deferred_init.start()
 
     def build_menu(self):
         """Build the main menu structure."""
@@ -701,6 +704,12 @@ class StopwatchApp(rumps.App):
         if cleaned:
             self.save_data()
             print("Data file has been cleaned of invalid entries.")
+
+    # ------------------------------------------------------------------ #
+    # one-shot timer: runs once, then stops itself
+    def _late_init(self, t):
+        t.stop()                  # important – we only need it once
+        self.update_ui_states()   # now it *sticks*
 
 
 if __name__ == "__main__":
