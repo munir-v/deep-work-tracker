@@ -365,11 +365,25 @@ class StopwatchApp(rumps.App):
             overall_lifetime += lifetime
 
         stats = "Deep Work Statistics:\n\n"
-        for period, total in [("Daily", overall_daily), ("Weekly", overall_weekly), ("Lifetime", overall_lifetime)]:
-            stats += f"{period} Total: {self.format_hours_minutes_seconds(total)}\n"
-            for category, stats_dict in per_category_stats.items():
-                stats += f"  {category}: {self.format_hours_minutes_seconds(stats_dict[period.lower()])}\n"
-            stats += "\n"
+        
+        # Daily statistics - only show categories with time > 0
+        stats += f"Daily Total: {self.format_hours_minutes_seconds(overall_daily)}\n"
+        for category, stats_dict in per_category_stats.items():
+            if stats_dict["daily"] > 0:
+                stats += f"  {category}: {self.format_hours_minutes_seconds(stats_dict['daily'])}\n"
+        stats += "\n"
+        
+        # Weekly statistics - only show categories with time > 0
+        stats += f"Weekly Total: {self.format_hours_minutes_seconds(overall_weekly)}\n"
+        for category, stats_dict in per_category_stats.items():
+            if stats_dict["weekly"] > 0:
+                stats += f"  {category}: {self.format_hours_minutes_seconds(stats_dict['weekly'])}\n"
+        stats += "\n"
+        
+        # Lifetime statistics - show all categories
+        stats += f"Lifetime Total: {self.format_hours_minutes_seconds(overall_lifetime)}\n"
+        for category, stats_dict in per_category_stats.items():
+            stats += f"  {category}: {self.format_hours_minutes_seconds(stats_dict['lifetime'])}\n"
 
         rumps.alert(stats)
 
