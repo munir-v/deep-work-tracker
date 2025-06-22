@@ -139,6 +139,9 @@ class StopwatchApp(rumps.App):
 
         with open(self.data_path, "r", encoding="utf-8") as f:
             self.data = json.load(f)
+            
+        # Validate and clean data after loading
+        self.validate_and_clean_data()
 
     def reload_data(self, _) -> None:
         """Reload data from the JSON file."""
@@ -183,6 +186,10 @@ class StopwatchApp(rumps.App):
     def update_timer(self, _) -> None:
         """Update the timer display and handle timer completion."""
         self.time_remaining -= 1
+        # Safety check to prevent negative time_remaining
+        if self.time_remaining < 0:
+            self.time_remaining = 0
+            
         if self.time_remaining <= 0:
             self.time_remaining = 0
             self.timer.stop()
@@ -304,6 +311,11 @@ class StopwatchApp(rumps.App):
             return
 
         time_value = round(self.time_elapsed / 60, 2)
+        # Validate that time is not negative
+        if time_value <= 0:
+            rumps.alert("Cannot save zero or negative time. Please start the stopwatch first.")
+            return
+            
         entry = {"date": datetime.now().isoformat(), "time": time_value}
         self.data["categories"][category_name].append(entry)
         self.save_data()
@@ -312,6 +324,11 @@ class StopwatchApp(rumps.App):
         """Save timer time to selected category."""
         if elapsed_seconds is None:
             elapsed_seconds = self.timer_duration - self.time_remaining
+
+        # Validate that elapsed time is not negative
+        if elapsed_seconds <= 0:
+            rumps.alert("Cannot save zero or negative time. Please start the timer first.")
+            return
 
         if not self.data["categories"]:
             rumps.alert("No categories available. Please add a category first.")
@@ -597,6 +614,10 @@ class StopwatchApp(rumps.App):
                 if time_minutes <= 0:
                     rumps.alert("Invalid input. Please enter a positive number for time in minutes.")
                     return None, None
+                # Additional validation: reasonable time limit (24 hours = 1440 minutes)
+                if time_minutes > 1440:
+                    rumps.alert("Invalid input. Please enter a time less than 24 hours (1440 minutes).")
+                    return None, None
                 return date_value, time_minutes
             except ValueError:
                 rumps.alert("Invalid time in minutes. Please enter a numeric value.")
@@ -642,6 +663,25 @@ class StopwatchApp(rumps.App):
             True,
             False,
         )
+
+    def validate_and_clean_data(self) -> None:
+        """Validate and clean up data entries, removing any negative time values."""
+        cleaned = False
+        for category in list(self.data["categories"].keys()):
+            # Filter out entries with negative or zero time
+            original_count = len(self.data["categories"][category])
+            self.data["categories"][category] = [
+                entry for entry in self.data["categories"][category]
+                if isinstance(entry.get("time"), (int, float)) and entry["time"] > 0
+            ]
+            new_count = len(self.data["categories"][category])
+            if new_count < original_count:
+                cleaned = True
+                print(f"Cleaned {original_count - new_count} invalid entries from category '{category}'")
+        
+        if cleaned:
+            self.save_data()
+            print("Data file has been cleaned of invalid entries.")
 
 
 if __name__ == "__main__":
