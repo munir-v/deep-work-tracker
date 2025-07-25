@@ -139,6 +139,8 @@ class StopwatchApp(rumps.App):
                 settings = json.load(f)
                 self.start_at_startup = settings.get("start_at_startup", False)
                 self.timer_duration = settings.get("timer_minutes", 120) * 60
+                # Update time_remaining to match the loaded timer duration
+                self.time_remaining = self.timer_duration
         except FileNotFoundError:
             pass
 
