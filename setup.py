@@ -8,7 +8,13 @@ OPTIONS = {
         "LSUIElement": True,
     },
     "packages": ["rumps", "AppKit", "Cocoa"],
-    "includes": ["imp"],
+    "excludes": [
+        "setuptools",
+        "pkg_resources",
+        "packaging",
+        "wheel",
+        "pip",
+    ],
     "iconfile": "icons/icon.icns",
 }
 
