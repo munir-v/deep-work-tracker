@@ -39,7 +39,7 @@ class StopwatchApp(rumps.App):
     - Start, pause, and reset both timer and stopwatch independently.
     - Maintain categories for time entries.
     - Save entries with timestamps and categories to a JSON data file.
-    - View statistics (daily, weekly, lifetime) for each category.
+    - View statistics (daily, last 7 days, lifetime) for each category.
     - Option to start the app at login.
     - Manual data entry for custom timestamps and durations.
     """
@@ -367,19 +367,19 @@ class StopwatchApp(rumps.App):
         self.save_data()
 
     def show_statistics(self, _) -> None:
-        """Show statistics with daily, weekly, and lifetime totals."""
+        """Show statistics with daily, last-7-days, and lifetime totals."""
         if not self.data["categories"]:
             rumps.alert("No categories available to show statistics.")
             return
 
         today = datetime.now().date()
-        week_ago = today - timedelta(days=7)
+        last_7_days_start = today - timedelta(days=6)
 
         per_category_stats = {}
-        overall_daily = overall_weekly = overall_lifetime = 0
+        overall_daily = overall_last_7_days = overall_lifetime = 0
 
         for category, entries in self.data["categories"].items():
-            daily = weekly = lifetime = 0
+            daily = last_7_days = lifetime = 0
 
             for entry in entries:
                 try:
@@ -389,19 +389,19 @@ class StopwatchApp(rumps.App):
 
                     if entry_date == today:
                         daily += time_spent
-                    if week_ago <= entry_date <= today:
-                        weekly += time_spent
+                    if last_7_days_start <= entry_date <= today:
+                        last_7_days += time_spent
                 except ValueError:
                     continue
 
             per_category_stats[category] = {
                 "daily": daily,
-                "weekly": weekly,
+                "last_7_days": last_7_days,
                 "lifetime": lifetime,
             }
 
             overall_daily += daily
-            overall_weekly += weekly
+            overall_last_7_days += last_7_days
             overall_lifetime += lifetime
 
         stats = "Deep Work Statistics:\n\n"
@@ -413,11 +413,11 @@ class StopwatchApp(rumps.App):
                 stats += f"  {category}: {self.format_hours_minutes_seconds(stats_dict['daily'])}\n"
         stats += "\n"
         
-        # Weekly statistics - only show categories with time > 0
-        stats += f"Weekly Total: {self.format_hours_minutes_seconds(overall_weekly)}\n"
+        # Last 7 days (inclusive) — only show categories with time > 0
+        stats += f"Last 7 days total: {self.format_hours_minutes_seconds(overall_last_7_days)}\n"
         for category, stats_dict in per_category_stats.items():
-            if stats_dict["weekly"] > 0:
-                stats += f"  {category}: {self.format_hours_minutes_seconds(stats_dict['weekly'])}\n"
+            if stats_dict["last_7_days"] > 0:
+                stats += f"  {category}: {self.format_hours_minutes_seconds(stats_dict['last_7_days'])}\n"
         stats += "\n"
         
         # Lifetime statistics - show all categories
