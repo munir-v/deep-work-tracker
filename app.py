@@ -7,7 +7,9 @@ from pathlib import Path
 import shutil
 
 import rumps
-from AppKit import NSAlertFirstButtonReturn, NSApp, NSTextField, NSView, NSSlider
+from AppKit import (
+    NSAlertFirstButtonReturn, NSApp, NSFont, NSFontWeightRegular, NSSlider, NSTextField, NSView
+)
 from Cocoa import NSAlert, NSComboBox, NSPoint, NSRect, NSSize, NSScreen, NSObject
 
 DEBUGGING_MODE = True
@@ -712,6 +714,13 @@ class StopwatchApp(rumps.App):
     def _late_init(self, t):
         t.stop()                  # important – we only need it once
         self.update_ui_states()   # now it *sticks*
+        self._use_monospaced_digits()
+
+    def _use_monospaced_digits(self) -> None:
+        """Give every digit the same width so the title doesn't resize (and shift other icons) each tick."""
+        size = NSFont.menuBarFontOfSize_(0).pointSize()
+        font = NSFont.monospacedDigitSystemFontOfSize_weight_(size, NSFontWeightRegular)
+        self._nsapp.nsstatusitem.button().setFont_(font)
 
 
 if __name__ == "__main__":
